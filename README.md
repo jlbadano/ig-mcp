@@ -26,7 +26,7 @@ A Model Context Protocol (MCP) server that provides seamless integration with In
 1. **Instagram Business Account**: Must be connected to a Facebook Page
 2. **Facebook Developer Account**: Required for API access
 3. **Access Token**: Long-lived access token with appropriate permissions
-4. **Python 3.8+**: For running the MCP server
+4. **Python 3.10+**: For running the MCP server (required by MCP dependencies)
 
 ### Required Instagram API Permissions
 - `instagram_basic`
