@@ -57,20 +57,29 @@ class InstagramMCPServer:
             return [
                 Tool(
                     name="get_profile_info",
-                    description="Get Instagram business profile information including followers, bio, and account details",
+                    description=(
+                        "Get Instagram business profile information including "
+                        "followers, bio, and account details"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "account_id": {
                                 "type": "string",
-                                "description": "Instagram business account ID (optional, uses configured account if not provided)"
+                                "description": (
+                                    "Instagram business account ID (optional, "
+                                    "uses configured account if not provided)"
+                                )
                             }
                         }
                     }
                 ),
                 Tool(
                     name="get_media_posts",
-                    description="Get recent media posts from Instagram account with engagement metrics",
+                    description=(
+                        "Get recent media posts from Instagram account "
+                        "with engagement metrics"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -87,14 +96,20 @@ class InstagramMCPServer:
                             },
                             "after": {
                                 "type": "string",
-                                "description": "Pagination cursor for getting posts after a specific point"
+                                "description": (
+                                    "Pagination cursor for getting posts "
+                                    "after a specific point"
+                                )
                             }
                         }
                     }
                 ),
                 Tool(
                     name="get_media_insights",
-                    description="Get detailed insights and analytics for a specific Instagram post",
+                    description=(
+                        "Get detailed insights and analytics for a "
+                        "specific Instagram post"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -106,9 +121,15 @@ class InstagramMCPServer:
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "enum": ["impressions", "reach", "likes", "comments", "shares", "saves", "video_views"]
+                                    "enum": [
+                                        "impressions", "reach", "likes", "comments",
+                                        "shares", "saves", "video_views"
+                                    ]
                                 },
-                                "description": "Specific metrics to retrieve (optional, gets all available if not specified)"
+                                "description": (
+                                    "Specific metrics to retrieve (optional, "
+                                    "gets all available if not specified)"
+                                )
                             }
                         },
                         "required": ["media_id"]
@@ -116,19 +137,28 @@ class InstagramMCPServer:
                 ),
                 Tool(
                     name="publish_media",
-                    description="Upload and publish an image or video to Instagram with caption and optional location",
+                    description=(
+                        "Upload and publish an image or video to Instagram "
+                        "with caption and optional location"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
                             "image_url": {
                                 "type": "string",
                                 "format": "uri",
-                                "description": "URL of the image to publish (must be publicly accessible)"
+                                "description": (
+                                    "URL of the image to publish "
+                                    "(must be publicly accessible)"
+                                )
                             },
                             "video_url": {
                                 "type": "string",
                                 "format": "uri",
-                                "description": "URL of the video to publish (must be publicly accessible)"
+                                "description": (
+                                    "URL of the video to publish "
+                                    "(must be publicly accessible)"
+                                )
                             },
                             "caption": {
                                 "type": "string",
@@ -136,7 +166,9 @@ class InstagramMCPServer:
                             },
                             "location_id": {
                                 "type": "string",
-                                "description": "Facebook location ID for geotagging (optional)"
+                                "description": (
+                                    "Facebook location ID for geotagging (optional)"
+                                )
                             }
                         },
                         "anyOf": [
@@ -147,7 +179,10 @@ class InstagramMCPServer:
                 ),
                 Tool(
                     name="get_account_pages",
-                    description="Get Facebook pages connected to the account and their Instagram business accounts",
+                    description=(
+                        "Get Facebook pages connected to the account and "
+                        "their Instagram business accounts"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {}
@@ -155,7 +190,10 @@ class InstagramMCPServer:
                 ),
                 Tool(
                     name="get_account_insights",
-                    description="Get account-level insights and analytics for Instagram business account",
+                    description=(
+                        "Get account-level insights and analytics for "
+                        "Instagram business account"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -167,7 +205,10 @@ class InstagramMCPServer:
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "enum": ["impressions", "reach", "profile_visits", "website_clicks"]
+                                    "enum": [
+                                        "impressions", "reach", "profile_visits",
+                                        "website_clicks"
+                                    ]
                                 },
                                 "description": "Specific metrics to retrieve"
                             },
@@ -182,7 +223,10 @@ class InstagramMCPServer:
                 ),
                 Tool(
                     name="validate_access_token",
-                    description="Validate the Instagram API access token and check permissions",
+                    description=(
+                        "Validate the Instagram API access token and "
+                        "check permissions"
+                    ),
                     inputSchema={
                         "type": "object",
                         "properties": {}

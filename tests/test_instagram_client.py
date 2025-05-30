@@ -6,20 +6,21 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+import httpx
 
 # Mock the settings before importing the client
 @pytest.fixture(autouse=True)
 def mock_settings():
     """Mock settings for all tests."""
-    with patch('src.config.get_settings') as mock_get_settings:
-        settings = MagicMock()
-        settings.instagram_api_url = "https://graph.facebook.com/v19.0"
-        settings.instagram_access_token = "test_token"
-        settings.instagram_business_account_id = "test_account_id"
-        settings.rate_limit_requests_per_hour = 200
-        settings.cache_enabled = True
-        settings.cache_ttl_seconds = 300
-        mock_get_settings.return_value = settings
+    settings = MagicMock()
+    settings.instagram_api_url = "https://graph.facebook.com/v19.0"
+    settings.instagram_access_token = "test_token"
+    settings.instagram_business_account_id = "test_account_id"
+    settings.rate_limit_requests_per_hour = 200
+    settings.cache_enabled = True
+    settings.cache_ttl_seconds = 300
+    
+    with patch('src.instagram_client.get_settings', return_value=settings):
         yield settings
 
 from src.instagram_client import InstagramClient, InstagramAPIError, RateLimitExceeded
@@ -158,7 +159,7 @@ class TestInstagramClient:
         
         # Verify API call
         instagram_client._make_request.assert_called_once_with(
-            "GET", "test_media_id/insights", {"metric": "impressions,reach,likes,comments,shares,saves"}
+            "GET", f"test_media_id/insights", params={"metric": "impressions,reach,likes,comments,shares,saves"}
         )
     
     @pytest.mark.asyncio
@@ -195,7 +196,7 @@ class TestInstagramClient:
         
         assert is_valid is True
         instagram_client._make_request.assert_called_once_with(
-            "GET", "me", {"fields": "id"}, use_cache=False
+            "GET", "me", params={"fields": "id"}, use_cache=False
         )
     
     @pytest.mark.asyncio
@@ -275,25 +276,27 @@ class TestInstagramClient:
         assert instagram_client._is_cache_valid(no_expiry_entry) is False
     
     @pytest.mark.asyncio
-    async def test_cache_usage(self, instagram_client):
-        """Test cache usage in requests."""
-        # Mock successful API response
+    async def test_caching_mechanism(self, instagram_client):
+        """Test response caching."""
         mock_response = {"data": "test_data"}
+        
+        # Mock the client to return a successful response
         mock_http_response = MagicMock()
         mock_http_response.status_code = 200
-        mock_http_response.json = MagicMock(return_value=mock_response)
+        mock_http_response.json.return_value = mock_response
         
         instagram_client.client.get = AsyncMock(return_value=mock_http_response)
         
-        # First request - should hit API
-        result1 = await instagram_client._make_request("GET", "test_endpoint", {"param": "value"})
+        # First call should hit the API
+        result1 = await instagram_client._make_request("GET", "test_endpoint", params={"param": "value"})
         assert result1 == mock_response
-        assert instagram_client.client.get.call_count == 1
         
-        # Second request - should use cache
-        result2 = await instagram_client._make_request("GET", "test_endpoint", {"param": "value"})
+        # Second call should use cache
+        result2 = await instagram_client._make_request("GET", "test_endpoint", params={"param": "value"})
         assert result2 == mock_response
-        assert instagram_client.client.get.call_count == 1  # No additional API call
+        
+        # Should only call the API once due to caching
+        assert instagram_client.client.get.call_count == 1
     
     @pytest.mark.asyncio
     async def test_close_client(self, instagram_client):

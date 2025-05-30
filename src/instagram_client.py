@@ -117,6 +117,7 @@ class InstagramClient:
         self,
         method: str,
         endpoint: str,
+        *,
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
         use_cache: bool = True
@@ -217,7 +218,7 @@ class InstagramClient:
         params = {"fields": ",".join(fields)}
 
         try:
-            data = await self._make_request("GET", account_id, params)
+            data = await self._make_request("GET", account_id, params=params)
             return InstagramProfile(**data)
         except Exception as e:
             logger.error("Failed to get profile info", error=str(e))
@@ -251,7 +252,7 @@ class InstagramClient:
             params["after"] = after
 
         try:
-            data = await self._make_request("GET", f"{account_id}/media", params)
+            data = await self._make_request("GET", f"{account_id}/media", params=params)
             media_list = []
 
             for item in data.get("data", []):
@@ -288,7 +289,7 @@ class InstagramClient:
         params = {"metric": ",".join([m.value for m in metrics])}
 
         try:
-            data = await self._make_request("GET", f"{media_id}/insights", params)
+            data = await self._make_request("GET", f"{media_id}/insights", params=params)
             insights = []
 
             for item in data.get("data", []):
@@ -312,45 +313,38 @@ class InstagramClient:
             raise InstagramAPIError(
                 "Instagram business account ID not configured")
 
-        # Step 1: Create media container
-        container_data = {}
-
-        if request.image_url:
-            container_data["image_url"] = str(request.image_url)
-        elif request.video_url:
-            container_data["video_url"] = str(request.video_url)
-            container_data["media_type"] = "VIDEO"
-
-        if request.caption:
-            container_data["caption"] = request.caption
-
-        if request.location_id:
-            container_data["location_id"] = request.location_id
-
-        if request.user_tags:
-            container_data["user_tags"] = request.user_tags
-
         try:
-            # Create container
+            # Step 1: Create media container
+            container_data = {
+                "caption": request.caption or "",
+            }
+
+            if request.image_url:
+                container_data["image_url"] = request.image_url
+            elif request.video_url:
+                container_data["video_url"] = request.video_url
+            else:
+                raise InstagramAPIError("Either image_url or video_url is required")
+
+            if request.location_id:
+                container_data["location_id"] = request.location_id
+
             container_response = await self._make_request(
-                "POST", f"{account_id}/media", data=container_data, use_cache=False
+                "POST", f"{account_id}/media", data=container_data
             )
 
-            container_id = container_response.get("id")
-            if not container_id:
-                raise InstagramAPIError("Failed to create media container")
+            container_id = container_response["id"]
 
-            # Step 2: Publish the container
+            # Step 2: Publish the media
             publish_data = {"creation_id": container_id}
             publish_response = await self._make_request(
-                "POST", f"{account_id}/media_publish", data=publish_data, use_cache=False
+                "POST", f"{account_id}/media_publish", data=publish_data
             )
 
-            media_id = publish_response.get("id")
-            if not media_id:
-                raise InstagramAPIError("Failed to publish media")
-
-            return PublishMediaResponse(id=media_id, status="published")
+            return PublishMediaResponse(
+                id=publish_response["id"],
+                success=True
+            )
 
         except Exception as e:
             logger.error("Failed to publish media", error=str(e))
@@ -358,12 +352,10 @@ class InstagramClient:
 
     async def get_account_pages(self) -> List[FacebookPage]:
         """Get Facebook pages connected to the account."""
-        params = {
-            "fields": "id,name,access_token,instagram_business_account"
-        }
+        params = {"fields": "id,name,instagram_business_account"}
 
         try:
-            data = await self._make_request("GET", "me/accounts", params)
+            data = await self._make_request("GET", "me/accounts", params=params)
             pages = []
 
             for item in data.get("data", []):
@@ -390,11 +382,7 @@ class InstagramClient:
                 "Instagram business account ID not configured")
 
         if not metrics:
-            metrics = [
-                "impressions",
-                "reach",
-                "profile_visits",
-                "website_clicks"]
+            metrics = ["impressions", "reach", "profile_visits", "website_clicks"]
 
         params = {
             "metric": ",".join(metrics),
@@ -402,7 +390,7 @@ class InstagramClient:
         }
 
         try:
-            data = await self._make_request("GET", f"{account_id}/insights", params)
+            data = await self._make_request("GET", f"{account_id}/insights", params=params)
             insights = []
 
             for item in data.get("data", []):
@@ -412,17 +400,14 @@ class InstagramClient:
 
         except Exception as e:
             logger.error("Failed to get account insights", error=str(e))
-            raise InstagramAPIError(
-                f"Failed to get account insights: {
-                    str(e)}")
+            raise InstagramAPIError(f"Failed to get account insights: {str(e)}")
 
     async def validate_access_token(self) -> bool:
-        """Validate the access token by making a simple API call."""
+        """Validate the access token."""
         try:
-            await self._make_request("GET", "me", {"fields": "id"}, use_cache=False)
+            await self._make_request("GET", "me", params={"fields": "id"}, use_cache=False)
             return True
-        except Exception as e:
-            logger.error("Access token validation failed", error=str(e))
+        except InstagramAPIError:
             return False
 
     def get_rate_limit_info(self) -> RateLimitInfo:
