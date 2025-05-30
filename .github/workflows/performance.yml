@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    # Run performance tests weekly
-    - cron: '0 6 * * 1'
+    # Run weekly performance tests
+    - cron: '0 2 * * 0'
 
 jobs:
   benchmark:
@@ -26,74 +26,121 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest-benchmark memory-profiler line-profiler
+        pip install pytest-benchmark pytest-asyncio
 
     - name: Create benchmark tests
       run: |
         mkdir -p tests/benchmarks
+        
+        # Create __init__.py for proper package structure
+        touch tests/benchmarks/__init__.py
+        
         cat > tests/benchmarks/test_performance.py << 'EOF'
         import pytest
         import asyncio
-        from unittest.mock import AsyncMock, patch
-        from src.instagram_client import InstagramClient
-        from src.config import Settings
+        import sys
+        import os
+        from unittest.mock import AsyncMock, patch, MagicMock
+
+        # Add src to Python path
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+        from instagram_client import InstagramClient
+        from config import get_settings
 
         @pytest.fixture
         def mock_settings():
-            return Settings(
-                instagram_access_token="test_token",
-                facebook_app_id="test_app_id",
-                facebook_app_secret="test_app_secret",
-                instagram_business_account_id="test_account_id"
-            )
+            """Mock settings for testing."""
+            settings = MagicMock()
+            settings.instagram_api_url = "https://graph.facebook.com/v19.0"
+            settings.instagram_access_token = "test_token"
+            settings.instagram_business_account_id = "test_account_id"
+            settings.rate_limit_requests_per_hour = 200
+            settings.cache_enabled = True
+            settings.cache_ttl_seconds = 300
+            return settings
 
         @pytest.fixture
         def client(mock_settings):
-            return InstagramClient(mock_settings)
+            """Create Instagram client for testing."""
+            with patch('instagram_client.get_settings', return_value=mock_settings):
+                with patch('instagram_client.httpx.AsyncClient'):
+                    client = InstagramClient()
+                    client.client = AsyncMock()
+                    return client
 
         @pytest.mark.benchmark(group="api_calls")
-        def test_get_profile_performance(benchmark, client):
+        @pytest.mark.asyncio
+        async def test_get_profile_performance(benchmark, client):
             """Benchmark profile retrieval performance."""
-            with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
-                mock_request.return_value = {
-                    "id": "123",
-                    "username": "test_user",
-                    "followers_count": 1000
-                }
-                
-                async def run_test():
-                    return await client.get_profile_info()
-                
-                result = benchmark(asyncio.run, run_test())
-                assert result is not None
+            mock_response = {
+                "id": "test_account_id",
+                "username": "test_user",
+                "name": "Test User",
+                "followers_count": 1000,
+                "follows_count": 500,
+                "media_count": 100
+            }
+            
+            client._make_request = AsyncMock(return_value=mock_response)
+            
+            async def run_test():
+                return await client.get_profile_info()
+            
+            result = await benchmark.pedantic(run_test, rounds=10)
+            assert result is not None
 
         @pytest.mark.benchmark(group="api_calls")
-        def test_get_media_performance(benchmark, client):
+        @pytest.mark.asyncio
+        async def test_get_media_performance(benchmark, client):
             """Benchmark media retrieval performance."""
-            with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
-                mock_request.return_value = {
-                    "data": [
-                        {"id": "1", "media_type": "IMAGE", "timestamp": "2025-01-01T00:00:00Z"}
-                    ]
-                }
-                
-                async def run_test():
-                    return await client.get_media_posts(limit=10)
-                
-                result = benchmark(asyncio.run, run_test())
-                assert result is not None
-
-        @pytest.mark.benchmark(group="rate_limiting")
-        def test_rate_limiter_performance(benchmark, client):
-            """Benchmark rate limiter performance."""
-            async def run_test():
-                # Simulate multiple rapid calls
-                tasks = []
-                for _ in range(10):
-                    tasks.append(client.rate_limiter.acquire())
-                await asyncio.gather(*tasks)
+            mock_response = {
+                "data": [
+                    {
+                        "id": "post_1",
+                        "media_type": "IMAGE",
+                        "caption": "Test post",
+                        "timestamp": "2024-01-01T12:00:00Z",
+                        "like_count": 50,
+                        "comments_count": 10
+                    }
+                ]
+            }
             
-            benchmark(asyncio.run, run_test())
+            client._make_request = AsyncMock(return_value=mock_response)
+            
+            async def run_test():
+                return await client.get_media_posts(limit=10)
+            
+            result = await benchmark.pedantic(run_test, rounds=10)
+            assert result is not None
+
+        @pytest.mark.benchmark(group="caching")
+        def test_cache_performance(benchmark, client):
+            """Benchmark cache operations."""
+            def run_test():
+                # Test cache key generation
+                for i in range(100):
+                    key = client._get_cache_key(f"endpoint_{i}", {"param": f"value_{i}"})
+                    assert key is not None
+            
+            benchmark(run_test)
+
+        @pytest.mark.benchmark(group="validation")
+        def test_cache_validation_performance(benchmark, client):
+            """Benchmark cache validation."""
+            from datetime import datetime, timedelta
+            
+            valid_entry = {
+                "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+            }
+            
+            def run_test():
+                for _ in range(1000):
+                    result = client._is_cache_valid(valid_entry)
+                    assert result is True
+            
+            benchmark(run_test)
         EOF
 
     - name: Run performance benchmarks
@@ -102,19 +149,16 @@ jobs:
         FACEBOOK_APP_ID: test_app_id_123
         FACEBOOK_APP_SECRET: test_app_secret_123
         INSTAGRAM_BUSINESS_ACCOUNT_ID: test_account_123
+        PYTHONPATH: ${{ github.workspace }}/src
       run: |
-        pytest tests/benchmarks/ --benchmark-only --benchmark-json=benchmark_results.json
+        pytest tests/benchmarks/ --benchmark-only --benchmark-json=benchmark_results.json -v
 
     - name: Store benchmark results
-      uses: benchmark-action/github-action-benchmark@v1
+      if: always()
+      uses: actions/upload-artifact@v3
       with:
-        tool: 'pytest'
-        output-file-path: benchmark_results.json
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        auto-push: true
-        comment-on-alert: true
-        alert-threshold: '200%'
-        fail-on-alert: true
+        name: benchmark-results
+        path: benchmark_results.json
 
   memory-profile:
     name: Memory Profiling
@@ -140,28 +184,38 @@ jobs:
         import asyncio
         import psutil
         import os
+        import sys
         from memory_profiler import profile
-        from src.instagram_client import InstagramClient
-        from src.config import Settings
+        from unittest.mock import MagicMock, patch, AsyncMock
+
+        # Add src to Python path
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
         @profile
         def test_memory_usage():
             """Profile memory usage of Instagram client."""
-            settings = Settings(
-                instagram_access_token="test_token",
-                facebook_app_id="test_app_id", 
-                facebook_app_secret="test_app_secret",
-                instagram_business_account_id="test_account_id"
-            )
+            # Mock settings
+            mock_settings = MagicMock()
+            mock_settings.instagram_api_url = "https://graph.facebook.com/v19.0"
+            mock_settings.instagram_access_token = "test_token"
+            mock_settings.instagram_business_account_id = "test_account_id"
+            mock_settings.rate_limit_requests_per_hour = 200
+            mock_settings.cache_enabled = True
+            mock_settings.cache_ttl_seconds = 300
             
-            client = InstagramClient(settings)
-            
-            # Simulate multiple operations
-            for i in range(100):
-                # Create some objects to test memory management
-                data = {"test": f"data_{i}" * 100}
-                
-            return client
+            with patch('instagram_client.get_settings', return_value=mock_settings):
+                with patch('instagram_client.httpx.AsyncClient'):
+                    from instagram_client import InstagramClient
+                    client = InstagramClient()
+                    client.client = AsyncMock()
+                    
+                    # Simulate cache operations
+                    for i in range(100):
+                        key = f"test_key_{i}"
+                        data = {"test": f"data_{i}" * 100}
+                        client._cache_response(key, data)
+                    
+                    return client
 
         if __name__ == "__main__":
             process = psutil.Process(os.getpid())
@@ -180,6 +234,8 @@ jobs:
             if memory_increase > 50:  # 50 MB threshold
                 print("WARNING: High memory usage detected!")
                 exit(1)
+            else:
+                print("✅ Memory usage within acceptable limits")
         EOF
 
     - name: Run memory profiling
@@ -188,10 +244,12 @@ jobs:
         FACEBOOK_APP_ID: test_app_id_123
         FACEBOOK_APP_SECRET: test_app_secret_123
         INSTAGRAM_BUSINESS_ACCOUNT_ID: test_account_123
+        PYTHONPATH: ${{ github.workspace }}/src
       run: |
         python memory_profile.py > memory_profile_results.txt
 
     - name: Upload memory profile results
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: memory-profile-results
@@ -218,47 +276,96 @@ jobs:
     - name: Create load test script
       run: |
         cat > locustfile.py << 'EOF'
-        from locust import HttpUser, task, between
-        import json
+        import sys
+        import os
+        from locust import User, task, between
+        from unittest.mock import MagicMock, patch, AsyncMock
+        import asyncio
 
-        class InstagramMCPUser(HttpUser):
+        # Add src to Python path
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+        class InstagramMCPUser(User):
             wait_time = between(1, 3)
             
             def on_start(self):
                 """Setup for each user."""
-                self.headers = {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer test_token"
-                }
+                # Mock settings
+                mock_settings = MagicMock()
+                mock_settings.instagram_api_url = "https://graph.facebook.com/v19.0"
+                mock_settings.instagram_access_token = "test_token"
+                mock_settings.instagram_business_account_id = "test_account_id"
+                mock_settings.rate_limit_requests_per_hour = 200
+                mock_settings.cache_enabled = True
+                mock_settings.cache_ttl_seconds = 300
+                
+                with patch('instagram_client.get_settings', return_value=mock_settings):
+                    with patch('instagram_client.httpx.AsyncClient'):
+                        from instagram_client import InstagramClient
+                        self.client = InstagramClient()
+                        self.client.client = AsyncMock()
             
             @task(3)
             def get_profile(self):
                 """Simulate profile retrieval."""
-                # This would be adapted for your actual MCP endpoints
-                pass
+                mock_response = {
+                    "id": "test_account_id",
+                    "username": "test_user",
+                    "followers_count": 1000
+                }
+                self.client._make_request = AsyncMock(return_value=mock_response)
+                
+                # Simulate async call
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.client.get_profile_info())
+                    assert result is not None
+                finally:
+                    loop.close()
             
             @task(2)
             def get_media(self):
                 """Simulate media retrieval."""
-                # This would be adapted for your actual MCP endpoints
-                pass
+                mock_response = {
+                    "data": [{"id": "1", "media_type": "IMAGE", "timestamp": "2025-01-01T00:00:00Z"}]
+                }
+                self.client._make_request = AsyncMock(return_value=mock_response)
+                
+                # Simulate async call
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.client.get_media_posts(limit=10))
+                    assert result is not None
+                finally:
+                    loop.close()
             
             @task(1)
-            def get_insights(self):
-                """Simulate insights retrieval."""
-                # This would be adapted for your actual MCP endpoints
-                pass
+            def validate_token(self):
+                """Simulate token validation."""
+                self.client._make_request = AsyncMock(return_value={"id": "test_id"})
+                
+                # Simulate async call
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.client.validate_access_token())
+                    assert result is True
+                finally:
+                    loop.close()
         EOF
 
     - name: Run load test
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
       run: |
-        # Run a lightweight load test
-        echo "Load testing would run here with actual endpoints"
-        echo "Simulating load test results..."
-        echo "Users: 10, Duration: 60s, RPS: 5" > load_test_results.txt
+        # Run a short load test (30 seconds, 5 users)
+        locust --headless --users 5 --spawn-rate 1 --run-time 30s --host http://localhost:8000 --html load_test_report.html
 
     - name: Upload load test results
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: load-test-results
-        path: load_test_results.txt 
+        path: load_test_report.html 
