@@ -20,10 +20,7 @@ from mcp.types import (
     Resource,
     Tool,
     Prompt,
-    TextContent,
-    ImageContent,
-    EmbeddedResource,
-    LoggingLevel
+    TextContent
 )
 
 from .config import get_settings
@@ -44,15 +41,15 @@ instagram_client: Optional[InstagramClient] = None
 
 class InstagramMCPServer:
     """Instagram MCP Server implementation."""
-    
+
     def __init__(self):
         self.settings = get_settings()
         self.server = Server(self.settings.mcp_server_name)
         self._setup_handlers()
-    
+
     def _setup_handlers(self):
         """Set up MCP server handlers."""
-        
+
         # Tools
         @self.server.list_tools()
         async def handle_list_tools() -> List[Tool]:
@@ -192,130 +189,118 @@ class InstagramMCPServer:
                     }
                 )
             ]
-        
+
         @self.server.call_tool()
-        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        async def handle_call_tool(
+                name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
             """Handle tool calls."""
             global instagram_client
-            
+
             if not instagram_client:
                 instagram_client = InstagramClient()
-            
+
             try:
                 if name == "get_profile_info":
                     account_id = arguments.get("account_id")
                     profile = await instagram_client.get_profile_info(account_id)
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data=profile.dict(),
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data=profile.dict(), metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "get_media_posts":
                     account_id = arguments.get("account_id")
                     limit = arguments.get("limit", 25)
                     after = arguments.get("after")
-                    
+
                     posts = await instagram_client.get_media_posts(account_id, limit, after)
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data={
-                            "posts": [post.dict() for post in posts],
-                            "count": len(posts)
-                        },
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data={
+                            "posts": [
+                                post.dict() for post in posts], "count": len(posts)}, metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "get_media_insights":
                     media_id = arguments["media_id"]
                     metrics = arguments.get("metrics")
-                    
+
                     if metrics:
                         metrics = [InsightMetric(m) for m in metrics]
-                    
+
                     insights = await instagram_client.get_media_insights(media_id, metrics)
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data={
-                            "media_id": media_id,
-                            "insights": [insight.dict() for insight in insights]
-                        },
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data={
+                            "media_id": media_id, "insights": [
+                                insight.dict() for insight in insights]}, metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "publish_media":
                     request = PublishMediaRequest(**arguments)
                     response = await instagram_client.publish_media(request)
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data=response.dict(),
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data=response.dict(), metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "get_account_pages":
                     pages = await instagram_client.get_account_pages()
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data={
-                            "pages": [page.dict() for page in pages],
-                            "count": len(pages)
-                        },
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data={
+                            "pages": [
+                                page.dict() for page in pages], "count": len(pages)}, metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "get_account_insights":
                     account_id = arguments.get("account_id")
                     metrics = arguments.get("metrics")
                     period = InsightPeriod(arguments.get("period", "day"))
-                    
+
                     insights = await instagram_client.get_account_insights(account_id, metrics, period)
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data={
-                            "insights": [insight.dict() for insight in insights],
-                            "period": period.value
-                        },
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data={
+                            "insights": [
+                                insight.dict() for insight in insights], "period": period.value}, metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 elif name == "validate_access_token":
                     is_valid = await instagram_client.validate_access_token()
-                    
+
                     result = MCPToolResult(
-                        success=True,
-                        data={"valid": is_valid},
-                        metadata={"tool": name, "timestamp": datetime.utcnow().isoformat()}
-                    )
-                    
+                        success=True, data={
+                            "valid": is_valid}, metadata={
+                            "tool": name, "timestamp": datetime.utcnow().isoformat()})
+
                 else:
                     result = MCPToolResult(
                         success=False,
                         error=f"Unknown tool: {name}"
                     )
-                
+
             except InstagramAPIError as e:
                 logger.error("Instagram API error", tool=name, error=str(e))
                 result = MCPToolResult(
-                    success=False,
-                    error=f"Instagram API error: {e.message}",
-                    metadata={"error_code": e.error_code, "error_subcode": e.error_subcode}
-                )
-                
+                    success=False, error=f"Instagram API error: {
+                        e.message}", metadata={
+                        "error_code": e.error_code, "error_subcode": e.error_subcode})
+
             except Exception as e:
                 logger.error("Tool execution error", tool=name, error=str(e))
                 result = MCPToolResult(
                     success=False,
                     error=f"Tool execution failed: {str(e)}"
                 )
-            
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
-        
+
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        result.dict(),
+                        indent=2))]
+
         # Resources
         @self.server.list_resources()
         async def handle_list_resources() -> List[Resource]:
@@ -325,127 +310,102 @@ class InstagramMCPServer:
                     uri="instagram://profile",
                     name="Instagram Profile",
                     description="Current Instagram business profile information",
-                    mimeType="application/json"
-                ),
+                    mimeType="application/json"),
                 Resource(
                     uri="instagram://media/recent",
                     name="Recent Media Posts",
                     description="Recent Instagram posts with engagement metrics",
-                    mimeType="application/json"
-                ),
+                    mimeType="application/json"),
                 Resource(
                     uri="instagram://insights/account",
                     name="Account Insights",
                     description="Account-level analytics and insights",
-                    mimeType="application/json"
-                ),
+                    mimeType="application/json"),
                 Resource(
                     uri="instagram://pages",
                     name="Connected Pages",
                     description="Facebook pages connected to the account",
-                    mimeType="application/json"
-                )
-            ]
-        
+                    mimeType="application/json")]
+
         @self.server.read_resource()
         async def handle_read_resource(uri: str) -> str:
             """Handle resource reading."""
             global instagram_client
-            
+
             if not instagram_client:
                 instagram_client = InstagramClient()
-            
+
             try:
                 if uri == "instagram://profile":
                     profile = await instagram_client.get_profile_info()
                     return json.dumps(profile.dict(), indent=2)
-                    
+
                 elif uri == "instagram://media/recent":
                     posts = await instagram_client.get_media_posts(limit=10)
-                    return json.dumps([post.dict() for post in posts], indent=2)
-                    
+                    return json.dumps([post.dict()
+                                      for post in posts], indent=2)
+
                 elif uri == "instagram://insights/account":
                     insights = await instagram_client.get_account_insights()
-                    return json.dumps([insight.dict() for insight in insights], indent=2)
-                    
+                    return json.dumps([insight.dict()
+                                      for insight in insights], indent=2)
+
                 elif uri == "instagram://pages":
                     pages = await instagram_client.get_account_pages()
-                    return json.dumps([page.dict() for page in pages], indent=2)
-                    
+                    return json.dumps([page.dict()
+                                      for page in pages], indent=2)
+
                 else:
                     raise ValueError(f"Unknown resource URI: {uri}")
-                    
+
             except Exception as e:
                 logger.error("Resource read error", uri=uri, error=str(e))
                 return json.dumps({"error": str(e)}, indent=2)
-        
+
         # Prompts
         @self.server.list_prompts()
         async def handle_list_prompts() -> List[Prompt]:
             """List available prompts."""
-            return [
-                Prompt(
-                    name="analyze_engagement",
-                    description="Analyze Instagram post engagement and provide insights",
-                    arguments=[
-                        {
-                            "name": "media_id",
-                            "description": "Instagram media ID to analyze",
-                            "required": True
-                        },
-                        {
-                            "name": "comparison_period",
-                            "description": "Period to compare against (e.g., 'last_week', 'last_month')",
-                            "required": False
-                        }
-                    ]
-                ),
-                Prompt(
-                    name="content_strategy",
-                    description="Generate content strategy recommendations based on account performance",
-                    arguments=[
-                        {
-                            "name": "focus_area",
-                            "description": "Area to focus on (e.g., 'engagement', 'reach', 'growth')",
-                            "required": False
-                        },
-                        {
-                            "name": "time_period",
-                            "description": "Time period to analyze (e.g., 'week', 'month')",
-                            "required": False
-                        }
-                    ]
-                ),
-                Prompt(
-                    name="hashtag_analysis",
-                    description="Analyze hashtag performance and suggest improvements",
-                    arguments=[
-                        {
-                            "name": "post_count",
-                            "description": "Number of recent posts to analyze",
-                            "required": False
-                        }
-                    ]
-                )
-            ]
-        
+            return [Prompt(name="analyze_engagement",
+                           description="Analyze Instagram post engagement and provide insights",
+                           arguments=[{"name": "media_id",
+                                       "description": "Instagram media ID to analyze",
+                                       "required": True},
+                                      {"name": "comparison_period",
+                                       "description": "Period to compare against (e.g., 'last_week', 'last_month')",
+                                       "required": False}]),
+                    Prompt(name="content_strategy",
+                           description="Generate content strategy recommendations based on account performance",
+                           arguments=[{"name": "focus_area",
+                                       "description": "Area to focus on (e.g., 'engagement', 'reach', 'growth')",
+                                       "required": False},
+                                      {"name": "time_period",
+                                       "description": "Time period to analyze (e.g., 'week', 'month')",
+                                       "required": False}]),
+                    Prompt(name="hashtag_analysis",
+                           description="Analyze hashtag performance and suggest improvements",
+                           arguments=[{"name": "post_count",
+                                       "description": "Number of recent posts to analyze",
+                                       "required": False}])]
+
         @self.server.get_prompt()
-        async def handle_get_prompt(name: str, arguments: Dict[str, str]) -> str:
+        async def handle_get_prompt(
+                name: str, arguments: Dict[str, str]) -> str:
             """Handle prompt requests."""
             global instagram_client
-            
+
             if not instagram_client:
                 instagram_client = InstagramClient()
-            
+
             try:
                 if name == "analyze_engagement":
                     media_id = arguments.get("media_id")
                     if not media_id:
                         return "Error: media_id is required for engagement analysis"
-                    
+
                     # Get media insights
                     insights = await instagram_client.get_media_insights(media_id)
-                    
+
                     prompt = f"""
 Analyze the engagement metrics for Instagram post {media_id}:
 
@@ -460,15 +420,15 @@ Please provide:
 5. Comparison with typical performance benchmarks
 """
                     return prompt
-                    
+
                 elif name == "content_strategy":
                     focus_area = arguments.get("focus_area", "engagement")
                     time_period = arguments.get("time_period", "week")
-                    
+
                     # Get recent posts and account insights
                     posts = await instagram_client.get_media_posts(limit=20)
                     account_insights = await instagram_client.get_account_insights()
-                    
+
                     prompt = f"""
 Generate a content strategy for Instagram focusing on {focus_area} over the {time_period}:
 
@@ -487,25 +447,26 @@ Please provide:
 6. Specific action items for the next {time_period}
 """
                     return prompt
-                    
+
                 elif name == "hashtag_analysis":
                     post_count = int(arguments.get("post_count", "10"))
-                    
+
                     # Get recent posts
                     posts = await instagram_client.get_media_posts(limit=post_count)
-                    
+
                     # Extract hashtags from captions
                     hashtags_data = []
                     for post in posts:
                         if post.caption:
-                            hashtags = [word for word in post.caption.split() if word.startswith('#')]
+                            hashtags = [
+                                word for word in post.caption.split() if word.startswith('#')]
                             hashtags_data.append({
                                 "post_id": post.id,
                                 "hashtags": hashtags,
                                 "likes": post.like_count,
                                 "comments": post.comments_count
                             })
-                    
+
                     prompt = f"""
 Analyze hashtag performance for the last {post_count} Instagram posts:
 
@@ -521,23 +482,26 @@ Please provide:
 6. Hashtag strategy improvements
 """
                     return prompt
-                    
+
                 else:
                     return f"Error: Unknown prompt '{name}'"
-                    
+
             except Exception as e:
-                logger.error("Prompt generation error", prompt=name, error=str(e))
+                logger.error(
+                    "Prompt generation error",
+                    prompt=name,
+                    error=str(e))
                 return f"Error generating prompt: {str(e)}"
-    
+
     async def run(self):
         """Run the MCP server."""
-        logger.info("Starting Instagram MCP Server", 
-                   version=self.settings.mcp_server_version)
-        
+        logger.info("Starting Instagram MCP Server",
+                    version=self.settings.mcp_server_version)
+
         # Initialize Instagram client
         global instagram_client
         instagram_client = InstagramClient()
-        
+
         # Validate access token on startup
         try:
             is_valid = await instagram_client.validate_access_token()
@@ -548,7 +512,7 @@ Please provide:
         except Exception as e:
             logger.error("Failed to validate access token", error=str(e))
             sys.exit(1)
-        
+
         # Run the server
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(
@@ -585,16 +549,16 @@ async def main():
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
-    
+
     # Set log level
     import logging
     settings = get_settings()
     logging.basicConfig(level=getattr(logging, settings.log_level))
-    
+
     # Create and run server
     server = InstagramMCPServer()
     await server.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

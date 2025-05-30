@@ -3,9 +3,9 @@ Pydantic models for Instagram API data structures.
 """
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, HttpUrl, field_validator, ConfigDict
 from enum import Enum
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, HttpUrl, Field, field_validator, ConfigDict
 
 
 class MediaType(str, Enum):
@@ -86,7 +86,7 @@ class InstagramMedia(BaseModel):
     timestamp: Optional[datetime] = None
     like_count: Optional[int] = None
     comments_count: Optional[int] = None
-    
+
     @field_validator('timestamp', mode='before')
     @classmethod
     def parse_timestamp(cls, v):
@@ -110,7 +110,7 @@ class PublishMediaRequest(BaseModel):
     caption: Optional[str] = None
     location_id: Optional[str] = None
     user_tags: Optional[List[UserTag]] = None
-    
+
     @field_validator('image_url', 'video_url')
     @classmethod
     def validate_media_url(cls, v, info):
@@ -118,7 +118,7 @@ class PublishMediaRequest(BaseModel):
         # This validator will be called for each field individually
         # We'll validate the combination in model_validator
         return v
-    
+
     @field_validator('caption')
     @classmethod
     def validate_caption_length(cls, v):
@@ -155,7 +155,7 @@ class FacebookPage(BaseModel):
 class AccountInsights(BaseModel):
     """Instagram account insights."""
     model_config = ConfigDict(extra='allow')
-    
+
     impressions: Optional[int] = None
     reach: Optional[int] = None
     profile_views: Optional[int] = None
@@ -170,24 +170,26 @@ class AccountInsights(BaseModel):
 class GetInsightsRequest(BaseModel):
     """Request model for getting insights."""
     media_id: str = Field(..., description="Media ID to get insights for")
-    metrics: List[InsightMetric] = Field(..., description="Metrics to retrieve")
-    period: Optional[InsightPeriod] = Field(InsightPeriod.LIFETIME, description="Time period")
+    metrics: List[InsightMetric] = Field(...,
+                                         description="Metrics to retrieve")
+    period: Optional[InsightPeriod] = Field(
+        InsightPeriod.LIFETIME, description="Time period")
 
 
 class ErrorResponse(BaseModel):
     """Error response model."""
     error: Dict[str, Any] = Field(..., description="Error details")
-    
+
     @property
     def message(self) -> str:
         """Get error message."""
         return self.error.get('message', 'Unknown error')
-    
+
     @property
     def code(self) -> int:
         """Get error code."""
         return self.error.get('code', 0)
-    
+
     @property
     def error_subcode(self) -> Optional[int]:
         """Get error subcode."""
@@ -196,10 +198,12 @@ class ErrorResponse(BaseModel):
 
 class MCPToolResult(BaseModel):
     """MCP tool execution result."""
-    success: bool = Field(..., description="Whether the operation was successful")
+    success: bool = Field(...,
+                          description="Whether the operation was successful")
     data: Optional[Dict[str, Any]] = Field(None, description="Result data")
     error: Optional[str] = Field(None, description="Error message if failed")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional metadata")
 
 
 class CacheEntry(BaseModel):
@@ -207,9 +211,11 @@ class CacheEntry(BaseModel):
     key: str = Field(..., description="Cache key")
     value: Dict[str, Any] = Field(..., description="Cached value")
     expires_at: datetime = Field(..., description="Expiration timestamp")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-    
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="Creation timestamp")
+
     @property
     def is_expired(self) -> bool:
         """Check if cache entry is expired."""
-        return datetime.utcnow() > self.expires_at 
+        return datetime.utcnow() > self.expires_at

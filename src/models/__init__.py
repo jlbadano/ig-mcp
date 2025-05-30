@@ -1,1 +1,1 @@
-# Data models for Instagram MCP Server 
+# Data models for Instagram MCP Server
