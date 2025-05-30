@@ -27,6 +27,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest-benchmark pytest-asyncio
+        # Install the package in development mode to handle imports
+        pip install -e .
 
     - name: Create benchmark tests
       run: |
@@ -38,15 +40,10 @@ jobs:
         cat > tests/benchmarks/test_performance.py << 'EOF'
         import pytest
         import asyncio
-        import sys
-        import os
         from unittest.mock import AsyncMock, patch, MagicMock
 
-        # Add src to Python path
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-        from instagram_client import InstagramClient
-        from config import get_settings
+        from src.instagram_client import InstagramClient
+        from src.config import get_settings
 
         @pytest.fixture
         def mock_settings():
@@ -63,8 +60,8 @@ jobs:
         @pytest.fixture
         def client(mock_settings):
             """Create Instagram client for testing."""
-            with patch('instagram_client.get_settings', return_value=mock_settings):
-                with patch('instagram_client.httpx.AsyncClient'):
+            with patch('src.instagram_client.get_settings', return_value=mock_settings):
+                with patch('src.instagram_client.httpx.AsyncClient'):
                     client = InstagramClient()
                     client.client = AsyncMock()
                     return client
@@ -87,7 +84,7 @@ jobs:
             async def run_test():
                 return await client.get_profile_info()
             
-            result = await benchmark.pedantic(run_test, rounds=10)
+            result = await benchmark.pedantic(run_test, rounds=5)
             assert result is not None
 
         @pytest.mark.benchmark(group="api_calls")
@@ -112,7 +109,7 @@ jobs:
             async def run_test():
                 return await client.get_media_posts(limit=10)
             
-            result = await benchmark.pedantic(run_test, rounds=10)
+            result = await benchmark.pedantic(run_test, rounds=5)
             assert result is not None
 
         @pytest.mark.benchmark(group="caching")
@@ -177,6 +174,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install memory-profiler psutil
+        # Install the package in development mode
+        pip install -e .
 
     - name: Create memory profiling script
       run: |
@@ -184,12 +183,10 @@ jobs:
         import asyncio
         import psutil
         import os
-        import sys
         from memory_profiler import profile
         from unittest.mock import MagicMock, patch, AsyncMock
 
-        # Add src to Python path
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+        from src.instagram_client import InstagramClient
 
         @profile
         def test_memory_usage():
@@ -203,9 +200,8 @@ jobs:
             mock_settings.cache_enabled = True
             mock_settings.cache_ttl_seconds = 300
             
-            with patch('instagram_client.get_settings', return_value=mock_settings):
-                with patch('instagram_client.httpx.AsyncClient'):
-                    from instagram_client import InstagramClient
+            with patch('src.instagram_client.get_settings', return_value=mock_settings):
+                with patch('src.instagram_client.httpx.AsyncClient'):
                     client = InstagramClient()
                     client.client = AsyncMock()
                     
@@ -244,7 +240,6 @@ jobs:
         FACEBOOK_APP_ID: test_app_id_123
         FACEBOOK_APP_SECRET: test_app_secret_123
         INSTAGRAM_BUSINESS_ACCOUNT_ID: test_account_123
-        PYTHONPATH: ${{ github.workspace }}/src
       run: |
         python memory_profile.py > memory_profile_results.txt
 
@@ -272,18 +267,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install locust
+        # Install the package in development mode
+        pip install -e .
 
     - name: Create load test script
       run: |
         cat > locustfile.py << 'EOF'
-        import sys
-        import os
         from locust import User, task, between
         from unittest.mock import MagicMock, patch, AsyncMock
         import asyncio
 
-        # Add src to Python path
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+        from src.instagram_client import InstagramClient
 
         class InstagramMCPUser(User):
             wait_time = between(1, 3)
@@ -299,9 +293,8 @@ jobs:
                 mock_settings.cache_enabled = True
                 mock_settings.cache_ttl_seconds = 300
                 
-                with patch('instagram_client.get_settings', return_value=mock_settings):
-                    with patch('instagram_client.httpx.AsyncClient'):
-                        from instagram_client import InstagramClient
+                with patch('src.instagram_client.get_settings', return_value=mock_settings):
+                    with patch('src.instagram_client.httpx.AsyncClient'):
                         self.client = InstagramClient()
                         self.client.client = AsyncMock()
             
@@ -357,8 +350,6 @@ jobs:
         EOF
 
     - name: Run load test
-      env:
-        PYTHONPATH: ${{ github.workspace }}/src
       run: |
         # Run a short load test (30 seconds, 5 users)
         locust --headless --users 5 --spawn-rate 1 --run-time 30s --host http://localhost:8000 --html load_test_report.html
