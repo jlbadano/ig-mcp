@@ -366,8 +366,7 @@ class InstagramMCPServer:
                 logger.error("Instagram API error", tool=name, error=str(e))
                 result = MCPToolResult(
                     success=False,
-                    error=f"Instagram API error: {
-                        e.message}",
+                    error=f"Instagram API error: {e.message}",
                     metadata={
                         "error_code": e.error_code,
                         "error_subcode": e.error_subcode,
