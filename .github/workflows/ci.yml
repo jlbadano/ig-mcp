@@ -81,7 +81,7 @@ jobs:
       run: pylint src/ --rcfile=.pylintrc --output-format=github
 
     - name: Run MyPy (type checking)
-      run: mypy src/ --ignore-missing-imports
+      run: mypy src/ --config-file mypy.ini
 
     - name: Run Bandit (security linting)
       run: |
