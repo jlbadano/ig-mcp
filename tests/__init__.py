@@ -1,1 +1,1 @@
-# Tests for Instagram MCP Server 
+# Tests for Instagram MCP Server

@@ -146,13 +146,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Check links in README
-      uses: gaurav-nelson/github-action-markdown-link-check@v1
-      with:
-        use-quiet-mode: 'yes'
-        use-verbose-mode: 'yes'
-        config-file: '.github/markdown-link-check-config.json'
-
     - name: Create link check config
       run: |
         mkdir -p .github
@@ -179,4 +172,11 @@ jobs:
             503
           ]
         }
-        EOF 
+        EOF
+
+    - name: Check links in README
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: '.github/markdown-link-check-config.json' 

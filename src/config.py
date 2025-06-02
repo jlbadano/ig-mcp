@@ -4,67 +4,65 @@ Configuration management for Instagram MCP Server.
 
 from pathlib import Path
 from typing import List, Optional
+
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator, ConfigDict
 
 
 class InstagramMCPSettings(BaseSettings):
     """Instagram MCP Server configuration settings."""
 
     model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
     )
 
     # Instagram API Configuration
-    instagram_access_token: str = Field(...,
-                                        description="Instagram access token")
+    instagram_access_token: str = Field(..., description="Instagram access token")
     facebook_app_id: str = Field(..., description="Facebook app ID")
     facebook_app_secret: str = Field(..., description="Facebook app secret")
     instagram_business_account_id: Optional[str] = Field(
-        None, description="Instagram business account ID")
+        None, description="Instagram business account ID"
+    )
 
     # API Configuration
-    instagram_api_version: str = Field(
-        "v19.0", description="Instagram API version")
+    instagram_api_version: str = Field("v19.0", description="Instagram API version")
     instagram_api_base_url: str = Field(
-        "https://graph.facebook.com",
-        description="Instagram API base URL")
+        "https://graph.facebook.com", description="Instagram API base URL"
+    )
 
     # Rate Limiting Configuration
     rate_limit_requests_per_hour: int = Field(
-        200, description="Rate limit requests per hour")
-    rate_limit_posts_per_day: int = Field(
-        25, description="Rate limit posts per day")
+        200, description="Rate limit requests per hour"
+    )
+    rate_limit_posts_per_day: int = Field(25, description="Rate limit posts per day")
     rate_limit_enable_backoff: bool = Field(
-        True, description="Enable rate limit backoff")
+        True, description="Enable rate limit backoff"
+    )
 
     # Logging Configuration
     log_level: str = Field("INFO", description="Log level")
     log_format: str = Field("json", description="Log format")
     log_file: Optional[str] = Field(
-        "logs/instagram_mcp.log",
-        description="Log file path")
+        "logs/instagram_mcp.log", description="Log file path"
+    )
 
     # Cache Configuration
     cache_enabled: bool = Field(True, description="Enable caching")
     cache_ttl_seconds: int = Field(300, description="Cache TTL in seconds")
     redis_url: Optional[str] = Field(
-        "redis://localhost:6379/0",
-        description="Redis URL")
+        "redis://localhost:6379/0", description="Redis URL"
+    )
 
     # Security Configuration
     enable_request_validation: bool = Field(
-        True, description="Enable request validation")
+        True, description="Enable request validation"
+    )
     max_request_size_mb: int = Field(10, description="Max request size in MB")
     allowed_image_formats: List[str] = Field(
-        ["jpg", "jpeg", "png", "gif"],
-        description="Allowed image formats"
+        ["jpg", "jpeg", "png", "gif"], description="Allowed image formats"
     )
     allowed_video_formats: List[str] = Field(
-        ["mp4", "mov"],
-        description="Allowed video formats"
+        ["mp4", "mov"], description="Allowed video formats"
     )
 
     # Development Configuration
@@ -73,26 +71,24 @@ class InstagramMCPSettings(BaseSettings):
     enable_metrics: bool = Field(True, description="Enable metrics")
 
     # MCP Server Configuration
-    mcp_server_name: str = Field(
-        "instagram-mcp-server",
-        description="MCP server name")
+    mcp_server_name: str = Field("instagram-mcp-server", description="MCP server name")
     mcp_server_version: str = Field("1.0.0", description="MCP server version")
     mcp_transport: str = Field("stdio", description="MCP transport")
 
     # Optional: Database Configuration
     database_url: Optional[str] = Field(
-        "sqlite:///instagram_mcp.db",
-        description="Database URL")
+        "sqlite:///instagram_mcp.db", description="Database URL"
+    )
     database_echo: bool = Field(False, description="Database echo")
 
     # Optional: Webhook Configuration
     webhook_verify_token: Optional[str] = Field(
-        None, description="Webhook verify token")
+        None, description="Webhook verify token"
+    )
     webhook_secret: Optional[str] = Field(None, description="Webhook secret")
     webhook_url: Optional[str] = Field(None, description="Webhook URL")
 
-    @field_validator("allowed_image_formats",
-                     "allowed_video_formats", mode="before")
+    @field_validator("allowed_image_formats", "allowed_video_formats", mode="before")
     @classmethod
     def parse_list_from_string(cls, v):
         """Parse comma-separated string into list."""

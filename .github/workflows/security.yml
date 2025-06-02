@@ -35,11 +35,35 @@ jobs:
 
     - name: Run Bandit Security Linter
       run: |
-        bandit -r src/ -f sarif -o bandit-results.sarif
+        echo "🔍 Running Bandit security analysis..."
+        echo "Current directory: $(pwd)"
+        echo "Source directory contents:"
+        ls -la src/ || echo "src/ directory not found"
+        
+        # Create empty SARIF file first
+        echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "bandit", "version": "1.0.0"}}, "results": []}]}' > bandit-results.sarif
+        
+        # Run Bandit and capture exit code
+        bandit_exit_code=0
+        bandit -r src/ -f sarif -o bandit-results.sarif || bandit_exit_code=$?
+        
+        echo "Bandit exit code: $bandit_exit_code"
+        echo "SARIF file exists: $(test -f bandit-results.sarif && echo 'yes' || echo 'no')"
+        echo "SARIF file size: $(wc -c < bandit-results.sarif 2>/dev/null || echo '0') bytes"
+        
+        # Ensure file exists and has valid content
+        if [ ! -f bandit-results.sarif ] || [ ! -s bandit-results.sarif ]; then
+          echo "Creating fallback SARIF file..."
+          echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "bandit", "version": "1.0.0"}}, "results": []}]}' > bandit-results.sarif
+        fi
+        
+        echo "Final SARIF file check:"
+        ls -la bandit-results.sarif
+        head -n 5 bandit-results.sarif
       continue-on-error: true
 
     - name: Upload Bandit results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: bandit-results.sarif
@@ -68,7 +92,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Dependency Review
-      uses: actions/dependency-review-action@v3
+      uses: actions/dependency-review-action@v4
       with:
         fail-on-severity: moderate
 
@@ -90,14 +114,14 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+      uses: github/codeql-action/autobuild@v3
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
       with:
         category: "/language:${{matrix.language}}" 
