@@ -1,0 +1,45 @@
+src package
+===========
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   src.models
+
+Submodules
+----------
+
+src.config module
+-----------------
+
+.. automodule:: src.config
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+src.instagram\_client module
+----------------------------
+
+.. automodule:: src.instagram_client
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+src.instagram\_mcp\_server module
+---------------------------------
+
+.. automodule:: src.instagram_mcp_server
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: src
+   :members:
+   :show-inheritance:
+   :undoc-members:

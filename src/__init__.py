@@ -1,1 +1,0 @@
-# Instagram MCP Server Package

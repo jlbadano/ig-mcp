@@ -1,0 +1,21 @@
+src.models package
+==================
+
+Submodules
+----------
+
+src.models.instagram\_models module
+-----------------------------------
+
+.. automodule:: src.models.instagram_models
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: src.models
+   :members:
+   :show-inheritance:
+   :undoc-members:

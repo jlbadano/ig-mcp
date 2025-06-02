@@ -1,0 +1,17 @@
+Instagram MCP Server Documentation
+==================================
+
+Welcome to the Instagram MCP Server documentation!
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   modules
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
