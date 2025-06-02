@@ -12,11 +12,18 @@ import structlog
 from asyncio_throttle import Throttler
 
 from .config import get_settings
-from .models.instagram_models import (AccountInsight, FacebookPage,
-                                      InsightMetric, InsightPeriod,
-                                      InstagramMedia, InstagramProfile,
-                                      MediaInsight, PublishMediaRequest,
-                                      PublishMediaResponse, RateLimitInfo)
+from .models.instagram_models import (
+    AccountInsight,
+    FacebookPage,
+    InsightMetric,
+    InsightPeriod,
+    InstagramMedia,
+    InstagramProfile,
+    MediaInsight,
+    PublishMediaRequest,
+    PublishMediaResponse,
+    RateLimitInfo,
+)
 
 logger = structlog.get_logger(__name__)
 

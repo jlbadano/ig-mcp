@@ -20,8 +20,12 @@ from mcp.types import Prompt, Resource, TextContent, Tool
 
 from .config import get_settings
 from .instagram_client import InstagramAPIError, InstagramClient
-from .models.instagram_models import (InsightMetric, InsightPeriod,
-                                      MCPToolResult, PublishMediaRequest)
+from .models.instagram_models import (
+    InsightMetric,
+    InsightPeriod,
+    MCPToolResult,
+    PublishMediaRequest,
+)
 
 # Configure logging
 logger = structlog.get_logger(__name__)

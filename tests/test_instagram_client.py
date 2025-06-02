@@ -26,11 +26,15 @@ def mock_settings():
         yield settings
 
 
-from src.instagram_client import (InstagramAPIError, InstagramClient,
-                                  RateLimitExceeded)
-from src.models.instagram_models import (InsightMetric, InstagramMedia,
-                                         InstagramProfile, MediaInsight,
-                                         MediaType, PublishMediaRequest)
+from src.instagram_client import InstagramAPIError, InstagramClient, RateLimitExceeded
+from src.models.instagram_models import (
+    InsightMetric,
+    InstagramMedia,
+    InstagramProfile,
+    MediaInsight,
+    MediaType,
+    PublishMediaRequest,
+)
 
 
 @pytest.fixture
