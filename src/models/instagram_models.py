@@ -10,6 +10,7 @@ from pydantic import BaseModel, HttpUrl, Field, field_validator, ConfigDict
 
 class MediaType(str, Enum):
     """Instagram media types."""
+
     IMAGE = "IMAGE"
     VIDEO = "VIDEO"
     CAROUSEL_ALBUM = "CAROUSEL_ALBUM"
@@ -17,6 +18,7 @@ class MediaType(str, Enum):
 
 class InsightMetric(str, Enum):
     """Available insight metrics."""
+
     IMPRESSIONS = "impressions"
     REACH = "reach"
     LIKES = "likes"
@@ -30,6 +32,7 @@ class InsightMetric(str, Enum):
 
 class InsightPeriod(str, Enum):
     """Insight time periods."""
+
     DAY = "day"
     WEEK = "week"
     DAYS_28 = "days_28"
@@ -38,6 +41,7 @@ class InsightPeriod(str, Enum):
 
 class MediaInsight(BaseModel):
     """Media insight data."""
+
     name: str
     period: str
     values: List[Dict[str, Any]]
@@ -47,6 +51,7 @@ class MediaInsight(BaseModel):
 
 class AccountInsight(BaseModel):
     """Account insight data."""
+
     name: str
     period: str
     values: List[Dict[str, Any]]
@@ -56,6 +61,7 @@ class AccountInsight(BaseModel):
 
 class RateLimitInfo(BaseModel):
     """Rate limit information."""
+
     app_id: str
     call_count: int
     total_cputime: int
@@ -64,6 +70,7 @@ class RateLimitInfo(BaseModel):
 
 class InstagramProfile(BaseModel):
     """Instagram business profile information."""
+
     id: str
     username: str
     name: Optional[str] = None
@@ -77,6 +84,7 @@ class InstagramProfile(BaseModel):
 
 class InstagramMedia(BaseModel):
     """Instagram media post."""
+
     id: str
     media_type: MediaType
     media_url: Optional[str] = None
@@ -87,17 +95,18 @@ class InstagramMedia(BaseModel):
     like_count: Optional[int] = None
     comments_count: Optional[int] = None
 
-    @field_validator('timestamp', mode='before')
+    @field_validator("timestamp", mode="before")
     @classmethod
     def parse_timestamp(cls, v):
         """Parse timestamp from ISO string."""
         if isinstance(v, str):
-            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
         return v
 
 
 class UserTag(BaseModel):
     """User tag for media."""
+
     username: str
     x: float = Field(..., ge=0.0, le=1.0)
     y: float = Field(..., ge=0.0, le=1.0)
@@ -105,13 +114,14 @@ class UserTag(BaseModel):
 
 class PublishMediaRequest(BaseModel):
     """Request to publish media to Instagram."""
+
     image_url: Optional[HttpUrl] = None
     video_url: Optional[HttpUrl] = None
     caption: Optional[str] = None
     location_id: Optional[str] = None
     user_tags: Optional[List[UserTag]] = None
 
-    @field_validator('image_url', 'video_url')
+    @field_validator("image_url", "video_url")
     @classmethod
     def validate_media_url(cls, v, info):
         """Validate that at least one media URL is provided."""
@@ -119,7 +129,7 @@ class PublishMediaRequest(BaseModel):
         # We'll validate the combination in model_validator
         return v
 
-    @field_validator('caption')
+    @field_validator("caption")
     @classmethod
     def validate_caption_length(cls, v):
         """Validate caption length."""
@@ -130,12 +140,14 @@ class PublishMediaRequest(BaseModel):
 
 class PublishMediaResponse(BaseModel):
     """Response from publishing media."""
+
     id: str
     status: str = "published"
 
 
 class InstagramError(BaseModel):
     """Instagram API error response."""
+
     message: str
     type: Optional[str] = None
     code: Optional[int] = None
@@ -145,6 +157,7 @@ class InstagramError(BaseModel):
 
 class FacebookPage(BaseModel):
     """Facebook page information."""
+
     id: str
     name: str
     access_token: Optional[str] = None
@@ -154,7 +167,8 @@ class FacebookPage(BaseModel):
 
 class AccountInsights(BaseModel):
     """Instagram account insights."""
-    model_config = ConfigDict(extra='allow')
+
+    model_config = ConfigDict(extra="allow")
 
     impressions: Optional[int] = None
     reach: Optional[int] = None
@@ -169,51 +183,53 @@ class AccountInsights(BaseModel):
 
 class GetInsightsRequest(BaseModel):
     """Request model for getting insights."""
+
     media_id: str = Field(..., description="Media ID to get insights for")
-    metrics: List[InsightMetric] = Field(...,
-                                         description="Metrics to retrieve")
+    metrics: List[InsightMetric] = Field(..., description="Metrics to retrieve")
     period: Optional[InsightPeriod] = Field(
-        InsightPeriod.LIFETIME, description="Time period")
+        InsightPeriod.LIFETIME, description="Time period"
+    )
 
 
 class ErrorResponse(BaseModel):
     """Error response model."""
+
     error: Dict[str, Any] = Field(..., description="Error details")
 
     @property
     def message(self) -> str:
         """Get error message."""
-        return self.error.get('message', 'Unknown error')
+        return self.error.get("message", "Unknown error")
 
     @property
     def code(self) -> int:
         """Get error code."""
-        return self.error.get('code', 0)
+        return self.error.get("code", 0)
 
     @property
     def error_subcode(self) -> Optional[int]:
         """Get error subcode."""
-        return self.error.get('error_subcode')
+        return self.error.get("error_subcode")
 
 
 class MCPToolResult(BaseModel):
     """MCP tool execution result."""
-    success: bool = Field(...,
-                          description="Whether the operation was successful")
+
+    success: bool = Field(..., description="Whether the operation was successful")
     data: Optional[Dict[str, Any]] = Field(None, description="Result data")
     error: Optional[str] = Field(None, description="Error message if failed")
-    metadata: Optional[Dict[str, Any]] = Field(
-        None, description="Additional metadata")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class CacheEntry(BaseModel):
     """Cache entry model."""
+
     key: str = Field(..., description="Cache key")
     value: Dict[str, Any] = Field(..., description="Cached value")
     expires_at: datetime = Field(..., description="Expiration timestamp")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="Creation timestamp")
+        default_factory=datetime.utcnow, description="Creation timestamp"
+    )
 
     @property
     def is_expired(self) -> bool:

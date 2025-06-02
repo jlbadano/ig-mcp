@@ -21,7 +21,7 @@ from .models.instagram_models import (
     AccountInsight,
     InsightMetric,
     InsightPeriod,
-    RateLimitInfo
+    RateLimitInfo,
 )
 
 logger = structlog.get_logger(__name__)
@@ -31,10 +31,11 @@ class InstagramAPIError(Exception):
     """Custom exception for Instagram API errors."""
 
     def __init__(
-            self,
-            message: str,
-            error_code: Optional[int] = None,
-            error_subcode: Optional[int] = None):
+        self,
+        message: str,
+        error_code: Optional[int] = None,
+        error_subcode: Optional[int] = None,
+    ):
         self.message = message
         self.error_code = error_code
         self.error_subcode = error_subcode
@@ -43,6 +44,7 @@ class InstagramAPIError(Exception):
 
 class RateLimitExceeded(InstagramAPIError):
     """Exception raised when rate limit is exceeded."""
+
     pass
 
 
@@ -56,22 +58,22 @@ class InstagramClient:
 
         # Rate limiting
         self.throttler = Throttler(
-            rate_limit=self.settings.rate_limit_requests_per_hour,
-            period=3600  # 1 hour
+            rate_limit=self.settings.rate_limit_requests_per_hour, period=3600  # 1 hour
         )
 
         # HTTP client with timeout and retry configuration
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(30.0),
-            limits=httpx.Limits(
-                max_keepalive_connections=5,
-                max_connections=10))
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+        )
 
         # Cache for storing responses
         self._cache: Dict[str, Dict[str, Any]] = {}
 
-        logger.info("Instagram client initialized",
-                    api_version=self.settings.instagram_api_version)
+        logger.info(
+            "Instagram client initialized",
+            api_version=self.settings.instagram_api_version,
+        )
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -106,11 +108,13 @@ class InstagramClient:
         if not self.settings.cache_enabled:
             return
 
-        expires_at = datetime.utcnow() + timedelta(seconds=self.settings.cache_ttl_seconds)
+        expires_at = datetime.utcnow() + timedelta(
+            seconds=self.settings.cache_ttl_seconds
+        )
         self._cache[key] = {
             "data": data,
             "expires_at": expires_at.isoformat(),
-            "cached_at": datetime.utcnow().isoformat()
+            "cached_at": datetime.utcnow().isoformat(),
         }
 
     async def _make_request(
@@ -120,7 +124,7 @@ class InstagramClient:
         *,
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> Dict[str, Any]:
         """Make HTTP request to Instagram API with rate limiting and error handling."""
 
@@ -144,8 +148,12 @@ class InstagramClient:
             url = f"{self.base_url}/{endpoint}"
 
             try:
-                logger.debug("Making API request",
-                             method=method, endpoint=endpoint, params=params)
+                logger.debug(
+                    "Making API request",
+                    method=method,
+                    endpoint=endpoint,
+                    params=params,
+                )
 
                 if method.upper() == "GET":
                     response = await self.client.get(url, params=params)
@@ -160,8 +168,7 @@ class InstagramClient:
                 # Check for rate limiting
                 if response.status_code == 429:
                     logger.warning("Rate limit exceeded", endpoint=endpoint)
-                    raise RateLimitExceeded(
-                        "Instagram API rate limit exceeded")
+                    raise RateLimitExceeded("Instagram API rate limit exceeded")
 
                 # Parse response
                 response_data = response.json()
@@ -173,13 +180,14 @@ class InstagramClient:
                     error_code = error.get("code")
                     error_subcode = error.get("error_subcode")
 
-                    logger.error("Instagram API error",
-                                 error_message=error_msg,
-                                 error_code=error_code,
-                                 error_subcode=error_subcode)
+                    logger.error(
+                        "Instagram API error",
+                        error_message=error_msg,
+                        error_code=error_code,
+                        error_subcode=error_subcode,
+                    )
 
-                    raise InstagramAPIError(
-                        error_msg, error_code, error_subcode)
+                    raise InstagramAPIError(error_msg, error_code, error_subcode)
 
                 # Cache successful GET responses
                 if method.upper() == "GET" and use_cache:
@@ -189,30 +197,33 @@ class InstagramClient:
                 return response_data
 
             except httpx.RequestError as e:
-                logger.error(
-                    "HTTP request failed",
-                    error=str(e),
-                    endpoint=endpoint)
+                logger.error("HTTP request failed", error=str(e), endpoint=endpoint)
                 raise InstagramAPIError(f"HTTP request failed: {str(e)}")
             except json.JSONDecodeError as e:
                 logger.error("Failed to parse JSON response", error=str(e))
                 raise InstagramAPIError(f"Invalid JSON response: {str(e)}")
 
     async def get_profile_info(
-            self,
-            account_id: Optional[str] = None) -> InstagramProfile:
+        self, account_id: Optional[str] = None
+    ) -> InstagramProfile:
         """Get Instagram business profile information."""
         if not account_id:
             account_id = self.settings.instagram_business_account_id
 
         if not account_id:
-            raise InstagramAPIError(
-                "Instagram business account ID not configured")
+            raise InstagramAPIError("Instagram business account ID not configured")
 
         fields = [
-            "id", "username", "name", "biography", "website",
-            "profile_picture_url", "followers_count", "follows_count",
-            "media_count", "account_type"
+            "id",
+            "username",
+            "name",
+            "biography",
+            "website",
+            "profile_picture_url",
+            "followers_count",
+            "follows_count",
+            "media_count",
+            "account_type",
         ]
 
         params = {"fields": ",".join(fields)}
@@ -228,24 +239,30 @@ class InstagramClient:
         self,
         account_id: Optional[str] = None,
         limit: int = 25,
-        after: Optional[str] = None
+        after: Optional[str] = None,
     ) -> List[InstagramMedia]:
         """Get recent media posts from Instagram account."""
         if not account_id:
             account_id = self.settings.instagram_business_account_id
 
         if not account_id:
-            raise InstagramAPIError(
-                "Instagram business account ID not configured")
+            raise InstagramAPIError("Instagram business account ID not configured")
 
         fields = [
-            "id", "media_type", "media_url", "permalink", "thumbnail_url",
-            "caption", "timestamp", "like_count", "comments_count"
+            "id",
+            "media_type",
+            "media_url",
+            "permalink",
+            "thumbnail_url",
+            "caption",
+            "timestamp",
+            "like_count",
+            "comments_count",
         ]
 
         params = {
             "fields": ",".join(fields),
-            "limit": min(limit, 100)  # Instagram API limit
+            "limit": min(limit, 100),  # Instagram API limit
         }
 
         if after:
@@ -271,9 +288,7 @@ class InstagramClient:
             raise InstagramAPIError(f"Failed to get media posts: {str(e)}")
 
     async def get_media_insights(
-        self,
-        media_id: str,
-        metrics: Optional[List[InsightMetric]] = None
+        self, media_id: str, metrics: Optional[List[InsightMetric]] = None
     ) -> List[MediaInsight]:
         """Get insights for a specific media post."""
         if not metrics:
@@ -283,13 +298,15 @@ class InstagramClient:
                 InsightMetric.LIKES,
                 InsightMetric.COMMENTS,
                 InsightMetric.SHARES,
-                InsightMetric.SAVES
+                InsightMetric.SAVES,
             ]
 
         params = {"metric": ",".join([m.value for m in metrics])}
 
         try:
-            data = await self._make_request("GET", f"{media_id}/insights", params=params)
+            data = await self._make_request(
+                "GET", f"{media_id}/insights", params=params
+            )
             insights = []
 
             for item in data.get("data", []):
@@ -299,19 +316,15 @@ class InstagramClient:
 
         except Exception as e:
             logger.error(
-                "Failed to get media insights",
-                error=str(e),
-                media_id=media_id)
+                "Failed to get media insights", error=str(e), media_id=media_id
+            )
             raise InstagramAPIError(f"Failed to get media insights: {str(e)}")
 
-    async def publish_media(
-            self,
-            request: PublishMediaRequest) -> PublishMediaResponse:
+    async def publish_media(self, request: PublishMediaRequest) -> PublishMediaResponse:
         """Publish media to Instagram account."""
         account_id = self.settings.instagram_business_account_id
         if not account_id:
-            raise InstagramAPIError(
-                "Instagram business account ID not configured")
+            raise InstagramAPIError("Instagram business account ID not configured")
 
         try:
             # Step 1: Create media container
@@ -341,10 +354,7 @@ class InstagramClient:
                 "POST", f"{account_id}/media_publish", data=publish_data
             )
 
-            return PublishMediaResponse(
-                id=publish_response["id"],
-                success=True
-            )
+            return PublishMediaResponse(id=publish_response["id"], success=True)
 
         except Exception as e:
             logger.error("Failed to publish media", error=str(e))
@@ -371,26 +381,24 @@ class InstagramClient:
         self,
         account_id: Optional[str] = None,
         metrics: Optional[List[str]] = None,
-        period: InsightPeriod = InsightPeriod.DAY
+        period: InsightPeriod = InsightPeriod.DAY,
     ) -> List[AccountInsight]:
         """Get account-level insights."""
         if not account_id:
             account_id = self.settings.instagram_business_account_id
 
         if not account_id:
-            raise InstagramAPIError(
-                "Instagram business account ID not configured")
+            raise InstagramAPIError("Instagram business account ID not configured")
 
         if not metrics:
             metrics = ["impressions", "reach", "profile_visits", "website_clicks"]
 
-        params = {
-            "metric": ",".join(metrics),
-            "period": period.value
-        }
+        params = {"metric": ",".join(metrics), "period": period.value}
 
         try:
-            data = await self._make_request("GET", f"{account_id}/insights", params=params)
+            data = await self._make_request(
+                "GET", f"{account_id}/insights", params=params
+            )
             insights = []
 
             for item in data.get("data", []):
@@ -405,7 +413,9 @@ class InstagramClient:
     async def validate_access_token(self) -> bool:
         """Validate the access token."""
         try:
-            await self._make_request("GET", "me", params={"fields": "id"}, use_cache=False)
+            await self._make_request(
+                "GET", "me", params={"fields": "id"}, use_cache=False
+            )
             return True
         except InstagramAPIError:
             return False
@@ -418,5 +428,5 @@ class InstagramClient:
             app_id=self.settings.facebook_app_id,
             call_count=0,  # Would track actual calls
             total_cputime=0,
-            total_time=0
+            total_time=0,
         )
