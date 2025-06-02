@@ -4,8 +4,9 @@ Pydantic models for Instagram API data structures.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, HttpUrl, Field, field_validator, ConfigDict
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 class MediaType(str, Enum):

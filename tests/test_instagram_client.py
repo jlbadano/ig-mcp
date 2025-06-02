@@ -2,11 +2,12 @@
 Unit tests for Instagram API client.
 """
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
 
 
 # Mock the settings before importing the client
@@ -25,15 +26,11 @@ def mock_settings():
         yield settings
 
 
-from src.instagram_client import InstagramClient, InstagramAPIError, RateLimitExceeded
-from src.models.instagram_models import (
-    InstagramProfile,
-    InstagramMedia,
-    PublishMediaRequest,
-    MediaType,
-    InsightMetric,
-    MediaInsight,
-)
+from src.instagram_client import (InstagramAPIError, InstagramClient,
+                                  RateLimitExceeded)
+from src.models.instagram_models import (InsightMetric, InstagramMedia,
+                                         InstagramProfile, MediaInsight,
+                                         MediaType, PublishMediaRequest)
 
 
 @pytest.fixture

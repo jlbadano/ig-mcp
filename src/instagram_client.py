@@ -4,25 +4,19 @@ Instagram API client for MCP server.
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
+
 import httpx
 import structlog
 from asyncio_throttle import Throttler
 
 from .config import get_settings
-from .models.instagram_models import (
-    InstagramProfile,
-    InstagramMedia,
-    FacebookPage,
-    PublishMediaRequest,
-    PublishMediaResponse,
-    MediaInsight,
-    AccountInsight,
-    InsightMetric,
-    InsightPeriod,
-    RateLimitInfo,
-)
+from .models.instagram_models import (AccountInsight, FacebookPage,
+                                      InsightMetric, InsightPeriod,
+                                      InstagramMedia, InstagramProfile,
+                                      MediaInsight, PublishMediaRequest,
+                                      PublishMediaResponse, RateLimitInfo)
 
 logger = structlog.get_logger(__name__)
 

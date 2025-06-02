@@ -9,23 +9,19 @@ enabling AI applications to manage Instagram business accounts programmatically.
 import asyncio
 import json
 import sys
-from typing import Any, Dict, List, Optional, Sequence
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence
 
 import structlog
 from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
-from mcp.types import Resource, Tool, Prompt, TextContent
+from mcp.types import Prompt, Resource, TextContent, Tool
 
 from .config import get_settings
-from .instagram_client import InstagramClient, InstagramAPIError
-from .models.instagram_models import (
-    PublishMediaRequest,
-    InsightMetric,
-    InsightPeriod,
-    MCPToolResult,
-)
+from .instagram_client import InstagramAPIError, InstagramClient
+from .models.instagram_models import (InsightMetric, InsightPeriod,
+                                      MCPToolResult, PublishMediaRequest)
 
 # Configure logging
 logger = structlog.get_logger(__name__)
