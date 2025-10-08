@@ -1,5 +1,6 @@
-[![MSeeP.ai Security Assessment Badge](https://mseep.net/pr/jlbadano-ig-mcp-badge.png)](https://mseep.ai/app/jlbadano-ig-mcp)
+[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/7bde8131-7019-405f-89d1-cef574a8129a)
 
+[![MSeeP.ai Security Assessment Badge](https://mseep.net/pr/jlbadano-ig-mcp-badge.png)](https://mseep.ai/app/jlbadano-ig-mcp)
 # Instagram MCP Server
 
 A Model Context Protocol (MCP) server that provides seamless integration with Instagram's Graph API, enabling AI applications to interact with Instagram Business accounts programmatically.
