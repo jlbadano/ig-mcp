@@ -157,6 +157,9 @@ jobs:
             },
             {
               "pattern": "^https://localhost"
+            },
+            {
+              "pattern": "^https://mseep.ai/app/7bde8131-7019-405f-89d1-cef574a8129a"
             }
           ],
           "timeout": "20s",
