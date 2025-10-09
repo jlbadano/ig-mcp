@@ -207,11 +207,10 @@ class InstagramMCPServer:
                                         "reach",
                                         "profile_views",
                                         "website_clicks",
-                                        "follower_count",
                                         "accounts_engaged",
                                     ],
                                 },
-                                "description": "Specific metrics to retrieve",
+                                "description": "Specific metrics to retrieve (Note: follower_count is available via get_profile_info)",
                             },
                             "period": {
                                 "type": "string",
