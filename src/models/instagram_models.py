@@ -51,13 +51,15 @@ class MediaInsight(BaseModel):
 
 
 class AccountInsight(BaseModel):
-    """Account insight data."""
+    """Account insight data - supports both time series and total value formats."""
 
     name: str
     period: str
-    values: List[Dict[str, Any]]
-    title: str
-    description: str
+    values: Optional[List[Dict[str, Any]]] = None
+    total_value: Optional[Dict[str, Any]] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    id: Optional[str] = None
 
 
 class RateLimitInfo(BaseModel):
