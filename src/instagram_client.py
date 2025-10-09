@@ -200,8 +200,15 @@ class InstagramClient:
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
         use_cache: bool = True,
+        use_facebook_api: bool = False,
     ) -> Dict[str, Any]:
-        """Make HTTP request to Instagram API with rate limiting and error handling."""
+        """
+        Make HTTP request to Instagram API with rate limiting and error handling.
+
+        Args:
+            use_facebook_api: If True, use graph.facebook.com instead of graph.instagram.com.
+                             Required for Instagram Direct Messaging (Messenger Platform API).
+        """
 
         # Prepare request parameters
         if params is None:
@@ -220,7 +227,13 @@ class InstagramClient:
 
         # Apply rate limiting
         async with self.throttler:
-            url = f"{self.base_url}/{endpoint}"
+            # Choose base URL: Facebook for DMs, Instagram for everything else
+            if use_facebook_api:
+                base_url = "https://graph.facebook.com/v22.0"
+            else:
+                base_url = self.base_url
+
+            url = f"{base_url}/{endpoint}"
 
             try:
                 logger.debug(
@@ -528,7 +541,12 @@ class InstagramClient:
         }
 
         try:
-            data = await self._make_request("GET", f"{page_id}/conversations", params=params)
+            data = await self._make_request(
+                "GET",
+                f"{page_id}/conversations",
+                params=params,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
             conversations = []
 
             for item in data.get("data", []):
@@ -558,7 +576,12 @@ class InstagramClient:
         }
 
         try:
-            data = await self._make_request("GET", conversation_id, params=params)
+            data = await self._make_request(
+                "GET",
+                conversation_id,
+                params=params,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
             messages = []
 
             for item in data.get("messages", {}).get("data", []):
@@ -591,7 +614,12 @@ class InstagramClient:
         }
 
         try:
-            data = await self._make_request("POST", "me/messages", data=message_data)
+            data = await self._make_request(
+                "POST",
+                "me/messages",
+                data=message_data,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
 
             return SendDMResponse(
                 message_id=data.get("message_id", ""),
