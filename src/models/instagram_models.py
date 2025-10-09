@@ -25,7 +25,7 @@ class InsightMetric(str, Enum):
     LIKES = "likes"
     COMMENTS = "comments"
     SHARES = "shares"
-    SAVES = "saves"
+    SAVED = "saved"
     VIDEO_VIEWS = "video_views"
     PROFILE_VISITS = "profile_visits"
     WEBSITE_CLICKS = "website_clicks"

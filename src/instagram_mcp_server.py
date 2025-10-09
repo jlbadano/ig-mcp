@@ -118,18 +118,18 @@ class InstagramMCPServer:
                                 "items": {
                                     "type": "string",
                                     "enum": [
-                                        "impressions",
                                         "reach",
                                         "likes",
                                         "comments",
                                         "shares",
-                                        "saves",
+                                        "saved",
                                         "video_views",
                                     ],
                                 },
                                 "description": (
                                     "Specific metrics to retrieve (optional, "
-                                    "gets all available if not specified)"
+                                    "gets all available if not specified). "
+                                    "Note: video_views only works for video posts"
                                 ),
                             },
                         },

@@ -293,12 +293,11 @@ class InstagramClient:
         """Get insights for a specific media post."""
         if not metrics:
             metrics = [
-                InsightMetric.IMPRESSIONS,
                 InsightMetric.REACH,
                 InsightMetric.LIKES,
                 InsightMetric.COMMENTS,
                 InsightMetric.SHARES,
-                InsightMetric.SAVES,
+                InsightMetric.SAVED,
             ]
 
         params = {"metric": ",".join([m.value for m in metrics])}
