@@ -4,12 +4,14 @@ Instagram API client for MCP server.
 
 import json
 from datetime import datetime, timedelta
+from io import BytesIO
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
 import httpx
 import structlog
 from asyncio_throttle import Throttler
+from PIL import Image
 
 from .config import get_settings
 from .models.instagram_models import (
@@ -117,6 +119,74 @@ class InstagramClient:
             "expires_at": expires_at.isoformat(),
             "cached_at": datetime.utcnow().isoformat(),
         }
+
+    async def _validate_image_aspect_ratio(self, image_url: str) -> None:
+        """
+        Validate image aspect ratio against Instagram requirements.
+        Raises InstagramAPIError if ratio is not supported.
+
+        Instagram accepts:
+        - Portrait: 4:5 (ratio 0.8)
+        - Square: 1:1 (ratio 1.0)
+        - Landscape: 1.91:1 (ratio 1.91)
+        """
+        try:
+            # Download image to get dimensions
+            response = await self.client.get(image_url)
+            response.raise_for_status()
+
+            # Open image and get dimensions
+            image = Image.open(BytesIO(response.content))
+            width, height = image.size
+            ratio = width / height
+
+            # Instagram accepted ratios with tolerance
+            ACCEPTED_RATIOS = {
+                "4:5 (portrait)": (0.8, 0.78, 0.82),      # 4:5 with ±2% tolerance
+                "1:1 (square)": (1.0, 0.98, 1.02),        # 1:1 with ±2% tolerance
+                "1.91:1 (landscape)": (1.91, 1.89, 1.93), # 1.91:1 with ±2% tolerance
+            }
+
+            # Check if ratio matches any accepted ratio
+            for ratio_name, (target, min_ratio, max_ratio) in ACCEPTED_RATIOS.items():
+                if min_ratio <= ratio <= max_ratio:
+                    logger.debug(
+                        "Image aspect ratio valid",
+                        width=width,
+                        height=height,
+                        ratio=ratio,
+                        accepted_as=ratio_name
+                    )
+                    return
+
+            # Ratio not accepted - build helpful error message
+            error_msg = (
+                f"Image aspect ratio {width}:{height} (ratio {ratio:.2f}) is not supported by Instagram.\n"
+                f"Accepted ratios are:\n"
+                f"  • 4:5 (portrait, ratio ~0.8)\n"
+                f"  • 1:1 (square, ratio 1.0)\n"
+                f"  • 1.91:1 (landscape, ratio ~1.91)\n"
+                f"Please crop or resize your image to one of these ratios."
+            )
+
+            logger.warning(
+                "Invalid image aspect ratio",
+                width=width,
+                height=height,
+                ratio=ratio,
+                url=image_url
+            )
+
+            raise InstagramAPIError(error_msg)
+
+        except httpx.HTTPError as e:
+            logger.error("Failed to download image for validation", error=str(e), url=image_url)
+            raise InstagramAPIError(f"Failed to download image for validation: {str(e)}")
+        except Exception as e:
+            if isinstance(e, InstagramAPIError):
+                raise
+            logger.error("Failed to validate image aspect ratio", error=str(e), url=image_url)
+            raise InstagramAPIError(f"Failed to validate image: {str(e)}")
 
     async def _make_request(
         self,
@@ -326,6 +396,11 @@ class InstagramClient:
             raise InstagramAPIError("Instagram business account ID not configured")
 
         try:
+            # Validate image aspect ratio before API call
+            if request.image_url:
+                await self._validate_image_aspect_ratio(str(request.image_url))
+            # Note: Video validation would require different logic (not implemented yet)
+
             # Step 1: Create media container
             container_data = {
                 "caption": request.caption or "",
