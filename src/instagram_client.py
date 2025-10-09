@@ -19,12 +19,16 @@ from .models.instagram_models import (
     FacebookPage,
     InsightMetric,
     InsightPeriod,
+    InstagramConversation,
     InstagramMedia,
+    InstagramMessage,
     InstagramProfile,
     MediaInsight,
     PublishMediaRequest,
     PublishMediaResponse,
     RateLimitInfo,
+    SendDMRequest,
+    SendDMResponse,
 )
 
 logger = structlog.get_logger(__name__)
@@ -497,6 +501,111 @@ class InstagramClient:
             return True
         except InstagramAPIError:
             return False
+
+    async def get_conversations(
+        self,
+        page_id: Optional[str] = None,
+        limit: int = 25
+    ) -> List[InstagramConversation]:
+        """
+        Get Instagram DM conversations for a Facebook page.
+
+        Note: Requires instagram_manage_messages permission.
+        """
+        if not page_id:
+            # Try to get page ID from connected pages
+            pages = await self.get_account_pages()
+            if not pages:
+                raise InstagramAPIError("No Facebook pages found. Please connect a Facebook page to your Instagram account.")
+            page_id = pages[0].id
+            logger.info(f"Using page ID: {page_id}")
+
+        fields = "id,updated_time,message_count"
+        params = {
+            "platform": "instagram",
+            "fields": fields,
+            "limit": min(limit, 100)
+        }
+
+        try:
+            data = await self._make_request("GET", f"{page_id}/conversations", params=params)
+            conversations = []
+
+            for item in data.get("data", []):
+                conversations.append(InstagramConversation(**item))
+
+            logger.info(f"Retrieved {len(conversations)} conversations")
+            return conversations
+
+        except Exception as e:
+            logger.error("Failed to get conversations", error=str(e))
+            raise InstagramAPIError(f"Failed to get conversations: {str(e)}")
+
+    async def get_conversation_messages(
+        self,
+        conversation_id: str,
+        limit: int = 25
+    ) -> List[InstagramMessage]:
+        """
+        Get messages from a specific Instagram DM conversation.
+
+        Note: Requires instagram_manage_messages permission.
+        """
+        fields = "id,from,to,message,created_time,attachments"
+        params = {
+            "fields": f"messages{{" + fields + "}}",
+            "limit": min(limit, 100)
+        }
+
+        try:
+            data = await self._make_request("GET", conversation_id, params=params)
+            messages = []
+
+            for item in data.get("messages", {}).get("data", []):
+                messages.append(InstagramMessage(**item))
+
+            logger.info(f"Retrieved {len(messages)} messages from conversation {conversation_id}")
+            return messages
+
+        except Exception as e:
+            logger.error("Failed to get conversation messages", error=str(e), conversation_id=conversation_id)
+            raise InstagramAPIError(f"Failed to get conversation messages: {str(e)}")
+
+    async def send_dm(
+        self,
+        request: SendDMRequest
+    ) -> SendDMResponse:
+        """
+        Send Instagram direct message.
+
+        IMPORTANT:
+        - Requires instagram_manage_messages permission (Advanced Access)
+        - Can only reply within 24 hours of user's last message
+        - Recipient must have initiated conversation first
+
+        Note: This method may fail if Advanced Access is not approved.
+        """
+        message_data = {
+            "recipient": {"id": request.recipient_id},
+            "message": {"text": request.message}
+        }
+
+        try:
+            data = await self._make_request("POST", "me/messages", data=message_data)
+
+            return SendDMResponse(
+                message_id=data.get("message_id", ""),
+                recipient_id=request.recipient_id,
+                success=True
+            )
+
+        except Exception as e:
+            logger.error("Failed to send DM", error=str(e), recipient=request.recipient_id)
+            # Add helpful error message if it's a permissions issue
+            error_msg = str(e)
+            if "permissions" in error_msg.lower() or "access" in error_msg.lower():
+                error_msg += "\n\nNote: Sending DMs requires instagram_manage_messages permission with Advanced Access from Meta."
+            raise InstagramAPIError(f"Failed to send DM: {error_msg}")
 
     def get_rate_limit_info(self) -> RateLimitInfo:
         """Get current rate limit information."""

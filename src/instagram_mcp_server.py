@@ -229,6 +229,82 @@ class InstagramMCPServer:
                     ),
                     inputSchema={"type": "object", "properties": {}},
                 ),
+                Tool(
+                    name="get_conversations",
+                    description=(
+                        "Get Instagram DM conversations. "
+                        "Requires instagram_manage_messages permission. "
+                        "Lists all conversations for the connected Instagram account."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "page_id": {
+                                "type": "string",
+                                "description": (
+                                    "Facebook page ID (optional, auto-detected from "
+                                    "connected pages if not provided)"
+                                ),
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Number of conversations to retrieve (max 100)",
+                                "minimum": 1,
+                                "maximum": 100,
+                                "default": 25,
+                            },
+                        },
+                    },
+                ),
+                Tool(
+                    name="get_conversation_messages",
+                    description=(
+                        "Get messages from a specific Instagram DM conversation. "
+                        "Requires instagram_manage_messages permission. "
+                        "Use get_conversations to get conversation IDs."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "conversation_id": {
+                                "type": "string",
+                                "description": "Instagram conversation ID",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Number of messages to retrieve (max 100)",
+                                "minimum": 1,
+                                "maximum": 100,
+                                "default": 25,
+                            },
+                        },
+                        "required": ["conversation_id"],
+                    },
+                ),
+                Tool(
+                    name="send_dm",
+                    description=(
+                        "Send Instagram direct message to a user. "
+                        "IMPORTANT: Requires instagram_manage_messages with Advanced Access from Meta. "
+                        "Can only reply within 24 hours of user's last message. "
+                        "Recipient must have initiated conversation first."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "recipient_id": {
+                                "type": "string",
+                                "description": "Instagram Scoped User ID (IGSID) of recipient",
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Message text to send (max 1000 characters)",
+                                "maxLength": 1000,
+                            },
+                        },
+                        "required": ["recipient_id", "message"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -357,6 +433,64 @@ class InstagramMCPServer:
                         metadata={
                             "tool": name,
                             "timestamp": datetime.utcnow().isoformat(),
+                        },
+                    )
+
+                elif name == "get_conversations":
+                    page_id = arguments.get("page_id")
+                    limit = arguments.get("limit", 25)
+
+                    conversations = await instagram_client.get_conversations(
+                        page_id, limit
+                    )
+
+                    result = MCPToolResult(
+                        success=True,
+                        data={
+                            "conversations": [conv.model_dump(mode='json') for conv in conversations],
+                            "count": len(conversations),
+                        },
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "note": "Requires instagram_manage_messages permission"
+                        },
+                    )
+
+                elif name == "get_conversation_messages":
+                    conversation_id = arguments["conversation_id"]
+                    limit = arguments.get("limit", 25)
+
+                    messages = await instagram_client.get_conversation_messages(
+                        conversation_id, limit
+                    )
+
+                    result = MCPToolResult(
+                        success=True,
+                        data={
+                            "conversation_id": conversation_id,
+                            "messages": [msg.model_dump(mode='json') for msg in messages],
+                            "count": len(messages),
+                        },
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        },
+                    )
+
+                elif name == "send_dm":
+                    from .models.instagram_models import SendDMRequest
+
+                    request = SendDMRequest(**arguments)
+                    response = await instagram_client.send_dm(request)
+
+                    result = MCPToolResult(
+                        success=True,
+                        data=response.model_dump(mode='json'),
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "note": "24-hour response window applies. Requires Advanced Access."
                         },
                     )
 

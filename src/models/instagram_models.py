@@ -238,3 +238,70 @@ class CacheEntry(BaseModel):
     def is_expired(self) -> bool:
         """Check if cache entry is expired."""
         return datetime.utcnow() > self.expires_at
+
+
+class InstagramMessage(BaseModel):
+    """Instagram direct message."""
+
+    id: str
+    from_id: str = Field(..., alias="from")
+    to: List[Dict[str, str]]
+    message: Optional[str] = None
+    created_time: datetime
+    attachments: Optional[List[Dict[str, Any]]] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("created_time", mode="before")
+    @classmethod
+    def parse_created_time(cls, v):
+        """Parse timestamp from ISO string."""
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return v
+
+
+class InstagramConversation(BaseModel):
+    """Instagram DM conversation."""
+
+    id: str
+    updated_time: datetime
+    messages: Optional[List[InstagramMessage]] = None
+    participants: Optional[List[Dict[str, str]]] = None
+    message_count: Optional[int] = None
+
+    @field_validator("updated_time", mode="before")
+    @classmethod
+    def parse_updated_time(cls, v):
+        """Parse timestamp from ISO string."""
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return v
+
+
+class SendDMRequest(BaseModel):
+    """Request to send Instagram DM."""
+
+    recipient_id: str = Field(
+        ..., description="Instagram Scoped User ID (IGSID) of recipient"
+    )
+    message: str = Field(..., description="Message text to send")
+    message_type: str = Field(
+        default="text", description="Message type (text, image, template)"
+    )
+
+    @field_validator("message")
+    @classmethod
+    def validate_message_length(cls, v):
+        """Validate message length."""
+        if len(v) > 1000:
+            raise ValueError("Message must be 1000 characters or less")
+        return v
+
+
+class SendDMResponse(BaseModel):
+    """Response from sending Instagram DM."""
+
+    message_id: str
+    recipient_id: str
+    success: bool = True
