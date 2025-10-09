@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import structlog
 from mcp.server import Server
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import Prompt, Resource, TextContent, Tool
@@ -632,7 +633,8 @@ Please provide:
                     server_name=self.settings.mcp_server_name,
                     server_version=self.settings.mcp_server_version,
                     capabilities=self.server.get_capabilities(
-                        notification_options=None, experimental_capabilities=None
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={}
                     ),
                 ),
             )
