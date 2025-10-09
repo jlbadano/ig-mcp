@@ -394,7 +394,11 @@ class InstagramClient:
         if not metrics:
             metrics = ["impressions", "reach", "profile_visits", "website_clicks"]
 
-        params = {"metric": ",".join(metrics), "period": period.value}
+        params = {
+            "metric": ",".join(metrics),
+            "period": period.value,
+            "metric_type": "total_value"  # Required for action metrics like website_clicks
+        }
 
         try:
             data = await self._make_request(
