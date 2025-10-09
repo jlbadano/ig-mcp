@@ -13,6 +13,9 @@ A Model Context Protocol (MCP) server that provides seamless integration with In
 - **Get Media Insights**: Retrieve engagement metrics for specific posts
 - **Publish Media**: Upload and publish images/videos to Instagram
 - **Get Account Pages**: List Facebook pages connected to the account
+- **Get Conversations**: List Instagram DM conversations (requires Advanced Access)
+- **Get Conversation Messages**: Read messages from specific conversations (requires Advanced Access)
+- **Send DM**: Reply to Instagram direct messages (requires Advanced Access)
 
 ### 📊 Resources (Application-controlled)
 - **Profile Data**: Access to profile information including follower counts, bio, etc.
@@ -32,11 +35,22 @@ A Model Context Protocol (MCP) server that provides seamless integration with In
 4. **Python 3.10+**: For running the MCP server (required by MCP dependencies)
 
 ### Required Instagram API Permissions
+
+**Standard Access** (available immediately):
 - `instagram_basic`
 - `instagram_content_publish`
 - `instagram_manage_insights`
+- `instagram_manage_comments`
 - `pages_show_list`
 - `pages_read_engagement`
+- `pages_manage_metadata`
+- `pages_read_user_content`
+- `business_management`
+
+**Advanced Access** (requires Meta App Review):
+- `instagram_manage_messages` - Required for Direct Messaging features
+
+> ⚠️ **Instagram DM Features**: Reading and sending Instagram direct messages requires Advanced Access approval from Meta. See [INSTAGRAM_DM_SETUP.md](INSTAGRAM_DM_SETUP.md) for the App Review process.
 
 ## 🔑 How to Get Instagram API Credentials
 

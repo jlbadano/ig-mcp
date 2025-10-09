@@ -555,6 +555,17 @@ class InstagramClient:
             logger.info(f"Retrieved {len(conversations)} conversations")
             return conversations
 
+        except InstagramAPIError as e:
+            logger.error("Failed to get conversations", error=str(e))
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if "#2" in error_msg or "unavailable" in error_msg.lower() or "temporarily" in error_msg.lower():
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
         except Exception as e:
             logger.error("Failed to get conversations", error=str(e))
             raise InstagramAPIError(f"Failed to get conversations: {str(e)}")
@@ -590,6 +601,17 @@ class InstagramClient:
             logger.info(f"Retrieved {len(messages)} messages from conversation {conversation_id}")
             return messages
 
+        except InstagramAPIError as e:
+            logger.error("Failed to get conversation messages", error=str(e), conversation_id=conversation_id)
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if "#2" in error_msg or "unavailable" in error_msg.lower() or "temporarily" in error_msg.lower():
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
         except Exception as e:
             logger.error("Failed to get conversation messages", error=str(e), conversation_id=conversation_id)
             raise InstagramAPIError(f"Failed to get conversation messages: {str(e)}")
@@ -627,13 +649,26 @@ class InstagramClient:
                 success=True
             )
 
+        except InstagramAPIError as e:
+            logger.error("Failed to send DM", error=str(e), recipient=request.recipient_id)
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if (
+                "#2" in error_msg
+                or "unavailable" in error_msg.lower()
+                or "temporarily" in error_msg.lower()
+                or "permissions" in error_msg.lower()
+                or "access" in error_msg.lower()
+            ):
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
         except Exception as e:
             logger.error("Failed to send DM", error=str(e), recipient=request.recipient_id)
-            # Add helpful error message if it's a permissions issue
-            error_msg = str(e)
-            if "permissions" in error_msg.lower() or "access" in error_msg.lower():
-                error_msg += "\n\nNote: Sending DMs requires instagram_manage_messages permission with Advanced Access from Meta."
-            raise InstagramAPIError(f"Failed to send DM: {error_msg}")
+            raise InstagramAPIError(f"Failed to send DM: {str(e)}")
 
     def get_rate_limit_info(self) -> RateLimitInfo:
         """Get current rate limit information."""
