@@ -332,9 +332,9 @@ class InstagramClient:
             }
 
             if request.image_url:
-                container_data["image_url"] = request.image_url
+                container_data["image_url"] = str(request.image_url)
             elif request.video_url:
-                container_data["video_url"] = request.video_url
+                container_data["video_url"] = str(request.video_url)
             else:
                 raise InstagramAPIError("Either image_url or video_url is required")
 
