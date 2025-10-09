@@ -204,18 +204,19 @@ class InstagramMCPServer:
                                 "items": {
                                     "type": "string",
                                     "enum": [
-                                        "impressions",
                                         "reach",
-                                        "profile_visits",
+                                        "profile_views",
                                         "website_clicks",
+                                        "follower_count",
+                                        "accounts_engaged",
                                     ],
                                 },
                                 "description": "Specific metrics to retrieve",
                             },
                             "period": {
                                 "type": "string",
-                                "enum": ["day", "week", "days_28"],
-                                "description": "Time period for insights",
+                                "enum": ["day", "lifetime"],
+                                "description": "Time period for insights (day for engagement metrics, lifetime for demographics)",
                                 "default": "day",
                             },
                         },

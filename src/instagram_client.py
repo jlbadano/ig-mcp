@@ -224,7 +224,6 @@ class InstagramClient:
             "followers_count",
             "follows_count",
             "media_count",
-            "account_type",
         ]
 
         params = {"fields": ",".join(fields)}
@@ -392,7 +391,7 @@ class InstagramClient:
             raise InstagramAPIError("Instagram business account ID not configured")
 
         if not metrics:
-            metrics = ["impressions", "reach", "profile_visits", "website_clicks"]
+            metrics = ["reach", "profile_views", "website_clicks"]
 
         params = {
             "metric": ",".join(metrics),
