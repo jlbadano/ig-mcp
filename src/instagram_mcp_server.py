@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import structlog
 from mcp.server import Server
+from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 from mcp.types import Prompt, Resource, TextContent, Tool
@@ -117,18 +118,18 @@ class InstagramMCPServer:
                                 "items": {
                                     "type": "string",
                                     "enum": [
-                                        "impressions",
                                         "reach",
                                         "likes",
                                         "comments",
                                         "shares",
-                                        "saves",
+                                        "saved",
                                         "video_views",
                                     ],
                                 },
                                 "description": (
                                     "Specific metrics to retrieve (optional, "
-                                    "gets all available if not specified)"
+                                    "gets all available if not specified). "
+                                    "Note: video_views only works for video posts"
                                 ),
                             },
                         },
@@ -203,18 +204,18 @@ class InstagramMCPServer:
                                 "items": {
                                     "type": "string",
                                     "enum": [
-                                        "impressions",
                                         "reach",
-                                        "profile_visits",
+                                        "profile_views",
                                         "website_clicks",
+                                        "accounts_engaged",
                                     ],
                                 },
-                                "description": "Specific metrics to retrieve",
+                                "description": "Specific metrics to retrieve (Note: follower_count is available via get_profile_info)",
                             },
                             "period": {
                                 "type": "string",
-                                "enum": ["day", "week", "days_28"],
-                                "description": "Time period for insights",
+                                "enum": ["day", "lifetime"],
+                                "description": "Time period for insights (day for engagement metrics, lifetime for demographics)",
                                 "default": "day",
                             },
                         },
@@ -227,6 +228,82 @@ class InstagramMCPServer:
                         "check permissions"
                     ),
                     inputSchema={"type": "object", "properties": {}},
+                ),
+                Tool(
+                    name="get_conversations",
+                    description=(
+                        "Get Instagram DM conversations. "
+                        "Requires instagram_manage_messages permission. "
+                        "Lists all conversations for the connected Instagram account."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "page_id": {
+                                "type": "string",
+                                "description": (
+                                    "Facebook page ID (optional, auto-detected from "
+                                    "connected pages if not provided)"
+                                ),
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Number of conversations to retrieve (max 100)",
+                                "minimum": 1,
+                                "maximum": 100,
+                                "default": 25,
+                            },
+                        },
+                    },
+                ),
+                Tool(
+                    name="get_conversation_messages",
+                    description=(
+                        "Get messages from a specific Instagram DM conversation. "
+                        "Requires instagram_manage_messages permission. "
+                        "Use get_conversations to get conversation IDs."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "conversation_id": {
+                                "type": "string",
+                                "description": "Instagram conversation ID",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Number of messages to retrieve (max 100)",
+                                "minimum": 1,
+                                "maximum": 100,
+                                "default": 25,
+                            },
+                        },
+                        "required": ["conversation_id"],
+                    },
+                ),
+                Tool(
+                    name="send_dm",
+                    description=(
+                        "Send Instagram direct message to a user. "
+                        "IMPORTANT: Requires instagram_manage_messages with Advanced Access from Meta. "
+                        "Can only reply within 24 hours of user's last message. "
+                        "Recipient must have initiated conversation first."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "recipient_id": {
+                                "type": "string",
+                                "description": "Instagram Scoped User ID (IGSID) of recipient",
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "Message text to send (max 1000 characters)",
+                                "maxLength": 1000,
+                            },
+                        },
+                        "required": ["recipient_id", "message"],
+                    },
                 ),
             ]
 
@@ -247,7 +324,7 @@ class InstagramMCPServer:
 
                     result = MCPToolResult(
                         success=True,
-                        data=profile.dict(),
+                        data=profile.model_dump(mode='json'),
                         metadata={
                             "tool": name,
                             "timestamp": datetime.utcnow().isoformat(),
@@ -266,7 +343,7 @@ class InstagramMCPServer:
                     result = MCPToolResult(
                         success=True,
                         data={
-                            "posts": [post.dict() for post in posts],
+                            "posts": [post.model_dump(mode='json') for post in posts],
                             "count": len(posts),
                         },
                         metadata={
@@ -290,7 +367,7 @@ class InstagramMCPServer:
                         success=True,
                         data={
                             "media_id": media_id,
-                            "insights": [insight.dict() for insight in insights],
+                            "insights": [insight.model_dump(mode='json') for insight in insights],
                         },
                         metadata={
                             "tool": name,
@@ -304,7 +381,7 @@ class InstagramMCPServer:
 
                     result = MCPToolResult(
                         success=True,
-                        data=response.dict(),
+                        data=response.model_dump(mode='json'),
                         metadata={
                             "tool": name,
                             "timestamp": datetime.utcnow().isoformat(),
@@ -317,7 +394,7 @@ class InstagramMCPServer:
                     result = MCPToolResult(
                         success=True,
                         data={
-                            "pages": [page.dict() for page in pages],
+                            "pages": [page.model_dump(mode='json') for page in pages],
                             "count": len(pages),
                         },
                         metadata={
@@ -338,7 +415,7 @@ class InstagramMCPServer:
                     result = MCPToolResult(
                         success=True,
                         data={
-                            "insights": [insight.dict() for insight in insights],
+                            "insights": [insight.model_dump(mode='json') for insight in insights],
                             "period": period.value,
                         },
                         metadata={
@@ -356,6 +433,64 @@ class InstagramMCPServer:
                         metadata={
                             "tool": name,
                             "timestamp": datetime.utcnow().isoformat(),
+                        },
+                    )
+
+                elif name == "get_conversations":
+                    page_id = arguments.get("page_id")
+                    limit = arguments.get("limit", 25)
+
+                    conversations = await instagram_client.get_conversations(
+                        page_id, limit
+                    )
+
+                    result = MCPToolResult(
+                        success=True,
+                        data={
+                            "conversations": [conv.model_dump(mode='json') for conv in conversations],
+                            "count": len(conversations),
+                        },
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "note": "Requires instagram_manage_messages permission"
+                        },
+                    )
+
+                elif name == "get_conversation_messages":
+                    conversation_id = arguments["conversation_id"]
+                    limit = arguments.get("limit", 25)
+
+                    messages = await instagram_client.get_conversation_messages(
+                        conversation_id, limit
+                    )
+
+                    result = MCPToolResult(
+                        success=True,
+                        data={
+                            "conversation_id": conversation_id,
+                            "messages": [msg.model_dump(mode='json') for msg in messages],
+                            "count": len(messages),
+                        },
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        },
+                    )
+
+                elif name == "send_dm":
+                    from .models.instagram_models import SendDMRequest
+
+                    request = SendDMRequest(**arguments)
+                    response = await instagram_client.send_dm(request)
+
+                    result = MCPToolResult(
+                        success=True,
+                        data=response.model_dump(mode='json'),
+                        metadata={
+                            "tool": name,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "note": "24-hour response window applies. Requires Advanced Access."
                         },
                     )
 
@@ -379,7 +514,7 @@ class InstagramMCPServer:
                     success=False, error=f"Tool execution failed: {str(e)}"
                 )
 
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [TextContent(type="text", text=json.dumps(result.model_dump(mode='json'), indent=2))]
 
         # Resources
         @self.server.list_resources()
@@ -423,21 +558,21 @@ class InstagramMCPServer:
             try:
                 if uri == "instagram://profile":
                     profile = await instagram_client.get_profile_info()
-                    return json.dumps(profile.dict(), indent=2)
+                    return json.dumps(profile.model_dump(mode='json'), indent=2)
 
                 elif uri == "instagram://media/recent":
                     posts = await instagram_client.get_media_posts(limit=10)
-                    return json.dumps([post.dict() for post in posts], indent=2)
+                    return json.dumps([post.model_dump(mode='json') for post in posts], indent=2)
 
                 elif uri == "instagram://insights/account":
                     insights = await instagram_client.get_account_insights()
                     return json.dumps(
-                        [insight.dict() for insight in insights], indent=2
+                        [insight.model_dump(mode='json') for insight in insights], indent=2
                     )
 
                 elif uri == "instagram://pages":
                     pages = await instagram_client.get_account_pages()
-                    return json.dumps([page.dict() for page in pages], indent=2)
+                    return json.dumps([page.model_dump(mode='json') for page in pages], indent=2)
 
                 else:
                     raise ValueError(f"Unknown resource URI: {uri}")
@@ -517,7 +652,7 @@ class InstagramMCPServer:
 Analyze the engagement metrics for Instagram post {media_id}:
 
 Insights Data:
-{json.dumps([insight.dict() for insight in insights], indent=2)}
+{json.dumps([insight.model_dump(mode='json') for insight in insights], indent=2)}
 
 Please provide:
 1. Overall engagement performance assessment
@@ -540,10 +675,10 @@ Please provide:
 Generate a content strategy for Instagram focusing on {focus_area} over the {time_period}:
 
 Recent Posts Performance:
-{json.dumps([post.dict() for post in posts[:5]], indent=2)}
+{json.dumps([post.model_dump(mode='json') for post in posts[:5]], indent=2)}
 
 Account Insights:
-{json.dumps([insight.dict() for insight in account_insights], indent=2)}
+{json.dumps([insight.model_dump(mode='json') for insight in account_insights], indent=2)}
 
 Please provide:
 1. Content performance analysis
@@ -632,7 +767,8 @@ Please provide:
                     server_name=self.settings.mcp_server_name,
                     server_version=self.settings.mcp_server_version,
                     capabilities=self.server.get_capabilities(
-                        notification_options=None, experimental_capabilities=None
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={}
                     ),
                 ),
             )
