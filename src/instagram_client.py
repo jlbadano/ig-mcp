@@ -4,12 +4,14 @@ Instagram API client for MCP server.
 
 import json
 from datetime import datetime, timedelta
+from io import BytesIO
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
 import httpx
 import structlog
 from asyncio_throttle import Throttler
+from PIL import Image
 
 from .config import get_settings
 from .models.instagram_models import (
@@ -17,12 +19,16 @@ from .models.instagram_models import (
     FacebookPage,
     InsightMetric,
     InsightPeriod,
+    InstagramConversation,
     InstagramMedia,
+    InstagramMessage,
     InstagramProfile,
     MediaInsight,
     PublishMediaRequest,
     PublishMediaResponse,
     RateLimitInfo,
+    SendDMRequest,
+    SendDMResponse,
 )
 
 logger = structlog.get_logger(__name__)
@@ -118,6 +124,74 @@ class InstagramClient:
             "cached_at": datetime.utcnow().isoformat(),
         }
 
+    async def _validate_image_aspect_ratio(self, image_url: str) -> None:
+        """
+        Validate image aspect ratio against Instagram requirements.
+        Raises InstagramAPIError if ratio is not supported.
+
+        Instagram accepts:
+        - Portrait: 4:5 (ratio 0.8)
+        - Square: 1:1 (ratio 1.0)
+        - Landscape: 1.91:1 (ratio 1.91)
+        """
+        try:
+            # Download image to get dimensions
+            response = await self.client.get(image_url)
+            response.raise_for_status()
+
+            # Open image and get dimensions
+            image = Image.open(BytesIO(response.content))
+            width, height = image.size
+            ratio = width / height
+
+            # Instagram accepted ratios with tolerance
+            ACCEPTED_RATIOS = {
+                "4:5 (portrait)": (0.8, 0.78, 0.82),      # 4:5 with ±2% tolerance
+                "1:1 (square)": (1.0, 0.98, 1.02),        # 1:1 with ±2% tolerance
+                "1.91:1 (landscape)": (1.91, 1.89, 1.93), # 1.91:1 with ±2% tolerance
+            }
+
+            # Check if ratio matches any accepted ratio
+            for ratio_name, (target, min_ratio, max_ratio) in ACCEPTED_RATIOS.items():
+                if min_ratio <= ratio <= max_ratio:
+                    logger.debug(
+                        "Image aspect ratio valid",
+                        width=width,
+                        height=height,
+                        ratio=ratio,
+                        accepted_as=ratio_name
+                    )
+                    return
+
+            # Ratio not accepted - build helpful error message
+            error_msg = (
+                f"Image aspect ratio {width}:{height} (ratio {ratio:.2f}) is not supported by Instagram.\n"
+                f"Accepted ratios are:\n"
+                f"  • 4:5 (portrait, ratio ~0.8)\n"
+                f"  • 1:1 (square, ratio 1.0)\n"
+                f"  • 1.91:1 (landscape, ratio ~1.91)\n"
+                f"Please crop or resize your image to one of these ratios."
+            )
+
+            logger.warning(
+                "Invalid image aspect ratio",
+                width=width,
+                height=height,
+                ratio=ratio,
+                url=image_url
+            )
+
+            raise InstagramAPIError(error_msg)
+
+        except httpx.HTTPError as e:
+            logger.error("Failed to download image for validation", error=str(e), url=image_url)
+            raise InstagramAPIError(f"Failed to download image for validation: {str(e)}")
+        except Exception as e:
+            if isinstance(e, InstagramAPIError):
+                raise
+            logger.error("Failed to validate image aspect ratio", error=str(e), url=image_url)
+            raise InstagramAPIError(f"Failed to validate image: {str(e)}")
+
     async def _make_request(
         self,
         method: str,
@@ -126,8 +200,15 @@ class InstagramClient:
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
         use_cache: bool = True,
+        use_facebook_api: bool = False,
     ) -> Dict[str, Any]:
-        """Make HTTP request to Instagram API with rate limiting and error handling."""
+        """
+        Make HTTP request to Instagram API with rate limiting and error handling.
+
+        Args:
+            use_facebook_api: If True, use graph.facebook.com instead of graph.instagram.com.
+                             Required for Instagram Direct Messaging (Messenger Platform API).
+        """
 
         # Prepare request parameters
         if params is None:
@@ -146,7 +227,13 @@ class InstagramClient:
 
         # Apply rate limiting
         async with self.throttler:
-            url = f"{self.base_url}/{endpoint}"
+            # Choose base URL: Facebook for DMs, Instagram for everything else
+            if use_facebook_api:
+                base_url = "https://graph.facebook.com/v22.0"
+            else:
+                base_url = self.base_url
+
+            url = f"{base_url}/{endpoint}"
 
             try:
                 logger.debug(
@@ -224,7 +311,6 @@ class InstagramClient:
             "followers_count",
             "follows_count",
             "media_count",
-            "account_type",
         ]
 
         params = {"fields": ",".join(fields)}
@@ -294,12 +380,11 @@ class InstagramClient:
         """Get insights for a specific media post."""
         if not metrics:
             metrics = [
-                InsightMetric.IMPRESSIONS,
                 InsightMetric.REACH,
                 InsightMetric.LIKES,
                 InsightMetric.COMMENTS,
                 InsightMetric.SHARES,
-                InsightMetric.SAVES,
+                InsightMetric.SAVED,
             ]
 
         params = {"metric": ",".join([m.value for m in metrics])}
@@ -328,15 +413,20 @@ class InstagramClient:
             raise InstagramAPIError("Instagram business account ID not configured")
 
         try:
+            # Validate image aspect ratio before API call
+            if request.image_url:
+                await self._validate_image_aspect_ratio(str(request.image_url))
+            # Note: Video validation would require different logic (not implemented yet)
+
             # Step 1: Create media container
             container_data = {
                 "caption": request.caption or "",
             }
 
             if request.image_url:
-                container_data["image_url"] = request.image_url
+                container_data["image_url"] = str(request.image_url)
             elif request.video_url:
-                container_data["video_url"] = request.video_url
+                container_data["video_url"] = str(request.video_url)
             else:
                 raise InstagramAPIError("Either image_url or video_url is required")
 
@@ -392,9 +482,13 @@ class InstagramClient:
             raise InstagramAPIError("Instagram business account ID not configured")
 
         if not metrics:
-            metrics = ["impressions", "reach", "profile_visits", "website_clicks"]
+            metrics = ["reach", "profile_views", "website_clicks"]
 
-        params = {"metric": ",".join(metrics), "period": period.value}
+        params = {
+            "metric": ",".join(metrics),
+            "period": period.value,
+            "metric_type": "total_value"  # Required for action metrics like website_clicks
+        }
 
         try:
             data = await self._make_request(
@@ -420,6 +514,161 @@ class InstagramClient:
             return True
         except InstagramAPIError:
             return False
+
+    async def get_conversations(
+        self,
+        page_id: Optional[str] = None,
+        limit: int = 25
+    ) -> List[InstagramConversation]:
+        """
+        Get Instagram DM conversations for a Facebook page.
+
+        Note: Requires instagram_manage_messages permission.
+        """
+        if not page_id:
+            # Try to get page ID from connected pages
+            pages = await self.get_account_pages()
+            if not pages:
+                raise InstagramAPIError("No Facebook pages found. Please connect a Facebook page to your Instagram account.")
+            page_id = pages[0].id
+            logger.info(f"Using page ID: {page_id}")
+
+        fields = "id,updated_time,message_count"
+        params = {
+            "platform": "instagram",
+            "fields": fields,
+            "limit": min(limit, 100)
+        }
+
+        try:
+            data = await self._make_request(
+                "GET",
+                f"{page_id}/conversations",
+                params=params,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
+            conversations = []
+
+            for item in data.get("data", []):
+                conversations.append(InstagramConversation(**item))
+
+            logger.info(f"Retrieved {len(conversations)} conversations")
+            return conversations
+
+        except InstagramAPIError as e:
+            logger.error("Failed to get conversations", error=str(e))
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if "#2" in error_msg or "unavailable" in error_msg.lower() or "temporarily" in error_msg.lower():
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
+        except Exception as e:
+            logger.error("Failed to get conversations", error=str(e))
+            raise InstagramAPIError(f"Failed to get conversations: {str(e)}")
+
+    async def get_conversation_messages(
+        self,
+        conversation_id: str,
+        limit: int = 25
+    ) -> List[InstagramMessage]:
+        """
+        Get messages from a specific Instagram DM conversation.
+
+        Note: Requires instagram_manage_messages permission.
+        """
+        fields = "id,from,to,message,created_time,attachments"
+        params = {
+            "fields": f"messages{{" + fields + "}}",
+            "limit": min(limit, 100)
+        }
+
+        try:
+            data = await self._make_request(
+                "GET",
+                conversation_id,
+                params=params,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
+            messages = []
+
+            for item in data.get("messages", {}).get("data", []):
+                messages.append(InstagramMessage(**item))
+
+            logger.info(f"Retrieved {len(messages)} messages from conversation {conversation_id}")
+            return messages
+
+        except InstagramAPIError as e:
+            logger.error("Failed to get conversation messages", error=str(e), conversation_id=conversation_id)
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if "#2" in error_msg or "unavailable" in error_msg.lower() or "temporarily" in error_msg.lower():
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
+        except Exception as e:
+            logger.error("Failed to get conversation messages", error=str(e), conversation_id=conversation_id)
+            raise InstagramAPIError(f"Failed to get conversation messages: {str(e)}")
+
+    async def send_dm(
+        self,
+        request: SendDMRequest
+    ) -> SendDMResponse:
+        """
+        Send Instagram direct message.
+
+        IMPORTANT:
+        - Requires instagram_manage_messages permission (Advanced Access)
+        - Can only reply within 24 hours of user's last message
+        - Recipient must have initiated conversation first
+
+        Note: This method may fail if Advanced Access is not approved.
+        """
+        message_data = {
+            "recipient": {"id": request.recipient_id},
+            "message": {"text": request.message}
+        }
+
+        try:
+            data = await self._make_request(
+                "POST",
+                "me/messages",
+                data=message_data,
+                use_facebook_api=True  # DMs use graph.facebook.com
+            )
+
+            return SendDMResponse(
+                message_id=data.get("message_id", ""),
+                recipient_id=request.recipient_id,
+                success=True
+            )
+
+        except InstagramAPIError as e:
+            logger.error("Failed to send DM", error=str(e), recipient=request.recipient_id)
+            error_msg = str(e)
+            # Detect Advanced Access permission error
+            if (
+                "#2" in error_msg
+                or "unavailable" in error_msg.lower()
+                or "temporarily" in error_msg.lower()
+                or "permissions" in error_msg.lower()
+                or "access" in error_msg.lower()
+            ):
+                error_msg += (
+                    "\n\n⚠️  This error indicates that instagram_manage_messages permission "
+                    "requires Advanced Access from Meta via App Review. "
+                    "\n📖 See INSTAGRAM_DM_SETUP.md for the complete approval process."
+                )
+            raise InstagramAPIError(error_msg)
+        except Exception as e:
+            logger.error("Failed to send DM", error=str(e), recipient=request.recipient_id)
+            raise InstagramAPIError(f"Failed to send DM: {str(e)}")
 
     def get_rate_limit_info(self) -> RateLimitInfo:
         """Get current rate limit information."""
