@@ -152,7 +152,7 @@ jobs:
 
     - name: Store benchmark results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: benchmark-results
         path: benchmark_results.json
@@ -245,7 +245,7 @@ jobs:
 
     - name: Upload memory profile results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: memory-profile-results
         path: memory_profile_results.txt
@@ -345,7 +345,7 @@ jobs:
 
     - name: Upload load test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: load-test-results
         path: load_test_report.html 
