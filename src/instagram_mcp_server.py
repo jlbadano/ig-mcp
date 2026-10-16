@@ -140,7 +140,8 @@ class InstagramMCPServer:
                     name="publish_media",
                     description=(
                         "Upload and publish an image or video to Instagram "
-                        "with caption and optional location"
+                        "with caption and optional location. Exactly one of "
+                        "image_url or video_url must be provided."
                     ),
                     inputSchema={
                         "type": "object",
@@ -150,7 +151,8 @@ class InstagramMCPServer:
                                 "format": "uri",
                                 "description": (
                                     "URL of the image to publish "
-                                    "(must be publicly accessible)"
+                                    "(must be publicly accessible). "
+                                    "Required unless video_url is given."
                                 ),
                             },
                             "video_url": {
@@ -158,7 +160,8 @@ class InstagramMCPServer:
                                 "format": "uri",
                                 "description": (
                                     "URL of the video to publish "
-                                    "(must be publicly accessible)"
+                                    "(must be publicly accessible). "
+                                    "Required unless image_url is given."
                                 ),
                             },
                             "caption": {
@@ -172,10 +175,6 @@ class InstagramMCPServer:
                                 ),
                             },
                         },
-                        "anyOf": [
-                            {"required": ["image_url"]},
-                            {"required": ["video_url"]},
-                        ],
                     },
                 ),
                 Tool(
